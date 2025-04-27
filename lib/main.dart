@@ -10,6 +10,8 @@ import 'package:illumi_home/screens/admin_login_screen.dart';
 import 'package:illumi_home/screens/admin_logs_screen.dart';
 import 'package:illumi_home/screens/help_support_screen.dart';
 import 'package:illumi_home/screens/schedule_edit_screen.dart';
+import 'package:illumi_home/screens/email_login_screen.dart'; // New import
+import 'package:illumi_home/screens/email_signup_screen.dart'; // New import
 import 'package:illumi_home/models/schedule.dart';
 import 'package:illumi_home/services/theme_service.dart';
 import 'package:illumi_home/firebase_options.dart';
@@ -69,6 +71,8 @@ class MyApp extends StatelessWidget {
         '/admin_logs': (context) => const AdminLogsScreen(),
         '/help': (context) => const HelpSupportScreen(),
         '/schedule/new': (context) => const ScheduleEditScreen(isNew: true),
+        '/email_login': (context) => const EmailLoginScreen(), // New route
+        '/email_signup': (context) => const EmailSignupScreen(), // New route
       },
       onGenerateRoute: (settings) {
         // Handle dynamic routes like /room/:id
