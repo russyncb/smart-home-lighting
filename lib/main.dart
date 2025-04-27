@@ -1,19 +1,19 @@
 // lib/main.dart
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'package:illumi_home/screens/dashboard_screen.dart';
 import 'package:illumi_home/screens/login_screen.dart'; 
 import 'package:illumi_home/screens/splash_screen.dart';
 import 'package:illumi_home/screens/room_detail_screen.dart';
-import 'package:illumi_home/screens/email_login_screen.dart';
-import 'package:illumi_home/screens/email_signup_screen.dart';
 import 'package:illumi_home/screens/admin_login_screen.dart';
 import 'package:illumi_home/screens/admin_logs_screen.dart';
 import 'package:illumi_home/screens/help_support_screen.dart';
+import 'package:illumi_home/screens/schedule_edit_screen.dart';
+import 'package:illumi_home/models/schedule.dart';
+import 'package:illumi_home/services/theme_service.dart';
 import 'package:illumi_home/firebase_options.dart';
 import 'package:illumi_home/models/room.dart';
-import 'package:illumi_home/services/theme_service.dart';
-import 'package:provider/provider.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,23 +42,33 @@ class MyApp extends StatelessWidget {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
     return MaterialApp(
-      title: 'IllumiHome',
+      title: 'Smart Home Lighting',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         useMaterial3: true,
         brightness: themeProvider.isDarkMode ? Brightness.dark : Brightness.light,
         colorSchemeSeed: Colors.amber,
+        scaffoldBackgroundColor: themeProvider.isDarkMode 
+            ? const Color(0xFF0F172A) 
+            : Colors.grey.shade50,
+        appBarTheme: AppBarTheme(
+          backgroundColor: themeProvider.isDarkMode 
+              ? const Color(0xFF0F172A) 
+              : Colors.white,
+          foregroundColor: themeProvider.isDarkMode 
+              ? Colors.white 
+              : Colors.black,
+        ),
       ),
       initialRoute: '/splash',
       routes: {
         '/splash': (context) => const SplashScreen(),
         '/login': (context) => const LoginScreen(),
         '/dashboard': (context) => const DashboardScreen(),
-        '/email_login': (context) => const EmailLoginScreen(),
-        '/email_signup': (context) => const EmailSignupScreen(),
         '/admin_login': (context) => const AdminLoginScreen(),
         '/admin_logs': (context) => const AdminLogsScreen(),
         '/help': (context) => const HelpSupportScreen(),
+        '/schedule/new': (context) => const ScheduleEditScreen(isNew: true),
       },
       onGenerateRoute: (settings) {
         // Handle dynamic routes like /room/:id
@@ -81,6 +91,22 @@ class MyApp extends StatelessWidget {
             ),
           );
         }
+        
+        // Handle schedule edit route
+        if (settings.name?.startsWith('/schedule/edit/') ?? false) {
+          final scheduleId = settings.name!.split('/').last;
+          
+          // If schedule data is passed as an argument, use it
+          if (settings.arguments != null) {
+            return MaterialPageRoute(
+              builder: (context) => ScheduleEditScreen(
+                isNew: false,
+                schedule: settings.arguments as Schedule,
+              ),
+            );
+          }
+        }
+        
         return null;
       },
     );

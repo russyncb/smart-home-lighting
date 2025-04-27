@@ -2,6 +2,7 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:illumi_home/models/room.dart';
+import 'package:illumi_home/models/schedule.dart';
 
 class DatabaseService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
@@ -25,6 +26,19 @@ class DatabaseService {
         });
   }
 
+  // Get schedules stream
+  Stream<List<Schedule>> getSchedulesStream() {
+    return _firestore
+        .collection('schedules')
+        .snapshots()
+        .map((snapshot) {
+          print("Firebase update received: ${snapshot.docs.length} schedules");
+          return snapshot.docs
+              .map((doc) => Schedule.fromMap(doc.data(), doc.id))
+              .toList();
+        });
+  }
+
   // Get rooms once (for non-real-time uses)
   Future<List<Room>> getRooms() async {
     try {
@@ -35,6 +49,20 @@ class DatabaseService {
     } catch (e) {
       print('Error getting rooms: $e');
       return _getMockRooms();
+    }
+  }
+
+  // Get a single room by ID
+  Future<Room?> getRoom(String roomId) async {
+    try {
+      final doc = await _firestore.collection('rooms').doc(roomId).get();
+      if (doc.exists) {
+        return Room.fromMap(doc.data()!, doc.id);
+      }
+      return null;
+    } catch (e) {
+      print('Error getting room: $e');
+      return null;
     }
   }
 
@@ -70,6 +98,72 @@ class DatabaseService {
       print('Room added successfully with ID: ${docRef.id}');
     } catch (e) {
       print('Error adding room: $e');
+      throw e;
+    }
+  }
+
+  // Delete a room
+  Future<void> deleteRoom(String roomId) async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Get room info for logging before deletion
+      final roomDoc = await _firestore.collection('rooms').doc(roomId).get();
+      String roomName = "Unknown";
+      String roomType = "Unknown";
+      
+      if (roomDoc.exists) {
+        final data = roomDoc.data();
+        roomName = data?['name'] ?? "Unknown";
+        roomType = data?['type'] ?? "Unknown";
+      }
+      
+      // Check for any schedules that reference this room and update them
+      final scheduleSnapshot = await _firestore.collection('schedules').get();
+      for (final doc in scheduleSnapshot.docs) {
+        final schedule = Schedule.fromMap(doc.data(), doc.id);
+        // Check if any targets reference this room
+        final hasTargets = schedule.targets.any((target) => target.roomId == roomId);
+        
+        if (hasTargets) {
+          // Remove targets for this room
+          final updatedTargets = schedule.targets.where((target) => target.roomId != roomId).toList();
+          
+          if (updatedTargets.isEmpty) {
+            // If no targets left, delete the schedule
+            await _firestore.collection('schedules').doc(doc.id).delete();
+          } else {
+            // Update the schedule with remaining targets
+            await _firestore.collection('schedules').doc(doc.id).update({
+              'targets': updatedTargets.map((t) => t.toMap()).toList(),
+            });
+          }
+        }
+      }
+      
+      // Delete the room
+      await _firestore.collection('rooms').doc(roomId).delete();
+      
+      // Log this action
+      await logActivity(
+        user.uid,
+        user.phoneNumber ?? user.email ?? 'Unknown',
+        'delete_room',
+        roomId,
+        'deleted_room',
+        details: {
+          'roomName': roomName,
+          'roomType': roomType,
+        },
+      );
+      
+      print('Room deleted successfully: $roomId');
+    } catch (e) {
+      print('Error deleting room: $e');
       throw e;
     }
   }
@@ -178,12 +272,89 @@ class DatabaseService {
       ];
       
       // Add each room to Firestore
+      final roomIds = <String>[];
       for (final room in rooms) {
         // Add user ID to distinguish who created these rooms
         room['createdBy'] = user.uid;
         room['createdAt'] = FieldValue.serverTimestamp();
         
-        await _firestore.collection('rooms').add(room);
+        final docRef = await _firestore.collection('rooms').add(room);
+        roomIds.add(docRef.id);
+      }
+      
+      // Create some default schedules
+      final List<Map<String, dynamic>> schedules = [
+        {
+          'name': 'Morning Routine',
+          'time': '06:30',
+          'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
+          'isActive': true,
+          'action': 'on',
+          'targets': [
+            {
+              'roomId': roomIds[0], // Bedroom
+              'roomName': 'Bedroom',
+              'lightId': '1',
+              'lightName': 'Ceiling Light',
+              'allLightsInRoom': false,
+            },
+            {
+              'roomId': roomIds[1], // Kitchen
+              'roomName': 'Kitchen',
+              'lightId': '3',
+              'lightName': 'Main Light',
+              'allLightsInRoom': false,
+            },
+          ],
+        },
+        {
+          'name': 'Evening Outdoor Lights',
+          'time': '18:00',
+          'days': ['Every day'],
+          'isActive': true,
+          'action': 'on',
+          'targets': [
+            {
+              'roomId': roomIds[3], // Main Entrance
+              'roomName': 'Main Entrance',
+              'lightId': '6',
+              'lightName': 'Porch Light',
+              'allLightsInRoom': false,
+            },
+            {
+              'roomId': roomIds[4], // Back of House
+              'roomName': 'Back of House',
+              'lightId': '7',
+              'lightName': 'Deck Light',
+              'allLightsInRoom': false,
+            },
+          ],
+        },
+        {
+          'name': 'Night Mode',
+          'time': '22:30',
+          'days': ['Every day'],
+          'isActive': true,
+          'action': 'off',
+          'targets': [
+            {
+              'roomId': 'all_indoor',
+              'roomName': 'All Indoor Rooms',
+              'lightId': 'all',
+              'lightName': 'All Lights',
+              'allLightsInRoom': true,
+            },
+          ],
+        },
+      ];
+      
+      // Add each schedule to Firestore
+      for (final schedule in schedules) {
+        // Add user ID to distinguish who created these schedules
+        schedule['createdBy'] = user.uid;
+        schedule['createdAt'] = FieldValue.serverTimestamp();
+        
+        await _firestore.collection('schedules').add(schedule);
       }
       
       // Log this action
@@ -195,10 +366,11 @@ class DatabaseService {
         'system',
         details: {
           'roomCount': rooms.length,
+          'scheduleCount': schedules.length,
         },
       );
       
-      print('System rooms created successfully: ${rooms.length} rooms');
+      print('System rooms and schedules created successfully');
     } catch (e) {
       print('Error setting up rooms: $e');
       throw e;
@@ -261,6 +433,143 @@ class DatabaseService {
       });
     } catch (e) {
       print('Error toggling light: $e');
+      throw e;
+    }
+  }
+
+  // Special method to toggle all lights in selected rooms (for schedules)
+  Future<void> executeScheduleAction(List<ScheduleTarget> targets, String action) async {
+    try {
+      // Get the current user for logging
+      final user = FirebaseAuth.instance.currentUser;
+      
+      for (final target in targets) {
+        if (target.roomId == 'all_indoor' || target.roomId == 'all_outdoor' || target.roomId == 'all') {
+          // Handle special case for all rooms
+          await _toggleAllLights(target.roomId, action == 'on');
+          continue;
+        }
+        
+        if (target.allLightsInRoom == true) {
+          // Toggle all lights in this room
+          final roomDoc = await _firestore.collection('rooms').doc(target.roomId).get();
+          if (!roomDoc.exists) continue;
+          
+          final roomData = roomDoc.data() as Map<String, dynamic>;
+          final lights = List<Map<String, dynamic>>.from(roomData['lights']);
+          
+          for (int i = 0; i < lights.length; i++) {
+            lights[i]['isOn'] = action == 'on';
+          }
+          
+          await _firestore.collection('rooms').doc(target.roomId).update({
+            'lights': lights,
+          });
+          
+          // Log this bulk action
+          if (user != null) {
+            await logActivity(
+              user.uid,
+              user.phoneNumber ?? user.email ?? 'Unknown',
+              'schedule_${action}',
+              target.roomId,
+              'all',
+              details: {
+                'roomName': target.roomName ?? 'Unknown room',
+                'scheduledAction': action,
+              },
+            );
+          }
+        } else {
+          // Toggle just this specific light
+          final roomDoc = await _firestore.collection('rooms').doc(target.roomId).get();
+          if (!roomDoc.exists) continue;
+          
+          final roomData = roomDoc.data() as Map<String, dynamic>;
+          final lights = List<Map<String, dynamic>>.from(roomData['lights']);
+          String lightName = 'Unknown';
+          
+          for (int i = 0; i < lights.length; i++) {
+            if (lights[i]['id'] == target.lightId) {
+              lights[i]['isOn'] = action == 'on';
+              lightName = lights[i]['name'];
+              break;
+            }
+          }
+          
+          await _firestore.collection('rooms').doc(target.roomId).update({
+            'lights': lights,
+          });
+          
+          // Log the activity
+          if (user != null) {
+            await logActivity(
+              user.uid,
+              user.phoneNumber ?? user.email ?? 'Unknown',
+              'schedule_${action}',
+              target.roomId,
+              target.lightId,
+              details: {
+                'lightName': lightName,
+                'roomName': target.roomName ?? 'Unknown room',
+                'scheduledAction': action,
+              },
+            );
+          }
+        }
+      }
+      
+      print('Schedule executed successfully: ${action} lights');
+    } catch (e) {
+      print('Error executing schedule: $e');
+      throw e;
+    }
+  }
+
+  // Helper to toggle all lights in a category
+  Future<void> _toggleAllLights(String category, bool newState) async {
+    try {
+      final snapshot = await _firestore.collection('rooms').get();
+      final user = FirebaseAuth.instance.currentUser;
+      
+      for (final doc in snapshot.docs) {
+        final roomData = doc.data();
+        final roomType = roomData['type'] as String? ?? '';
+        
+        // Filter by category
+        if (category == 'all' || 
+            (category == 'all_indoor' && roomType == 'indoor') ||
+            (category == 'all_outdoor' && roomType == 'outdoor')) {
+          
+          final lights = List<Map<String, dynamic>>.from(roomData['lights'] ?? []);
+          
+          for (int i = 0; i < lights.length; i++) {
+            lights[i]['isOn'] = newState;
+          }
+          
+          await _firestore.collection('rooms').doc(doc.id).update({
+            'lights': lights,
+          });
+          
+          // Log this bulk action
+          if (user != null) {
+            await logActivity(
+              user.uid,
+              user.phoneNumber ?? user.email ?? 'Unknown',
+              'toggle_all_lights',
+              doc.id,
+              'all',
+              details: {
+                'roomName': roomData['name'] ?? 'Unknown room',
+                'newState': newState,
+                'category': category,
+              },
+            );
+          }
+        }
+      }
+    } catch (e) {
+      print('Error toggling all lights: $e');
       throw e;
     }
   }
@@ -381,6 +690,155 @@ class DatabaseService {
       });
     } catch (e) {
       print('Error toggling motion sensor: $e');
+      throw e;
+    }
+  }
+
+  // SCHEDULE METHODS
+  
+  // Add a new schedule
+  Future<void> addSchedule(Map<String, dynamic> scheduleData) async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Add user ID and timestamp
+      scheduleData['createdBy'] = user.uid;
+      scheduleData['createdAt'] = FieldValue.serverTimestamp();
+      
+      // Add schedule to Firestore
+      final docRef = await _firestore.collection('schedules').add(scheduleData);
+      
+      // Log this action
+      await logActivity(
+        user.uid,
+        user.phoneNumber ?? user.email ?? 'Unknown',
+        'add_schedule',
+        'system',
+        'schedule',
+        details: {
+          'scheduleName': scheduleData['name'],
+          'scheduleId': docRef.id,
+        },
+      );
+      
+      print('Schedule added successfully with ID: ${docRef.id}');
+    } catch (e) {
+      print('Error adding schedule: $e');
+      throw e;
+    }
+  }
+  
+  // Update an existing schedule
+  Future<void> updateSchedule(String scheduleId, Map<String, dynamic> scheduleData) async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Add updated timestamp
+      scheduleData['updatedAt'] = FieldValue.serverTimestamp();
+      
+      // Update schedule in Firestore
+      await _firestore.collection('schedules').doc(scheduleId).update(scheduleData);
+      
+      // Log this action
+      await logActivity(
+        user.uid,
+        user.phoneNumber ?? user.email ?? 'Unknown',
+        'update_schedule',
+        'system',
+        'schedule',
+        details: {
+          'scheduleName': scheduleData['name'],
+          'scheduleId': scheduleId,
+        },
+      );
+      
+      print('Schedule updated successfully: $scheduleId');
+    } catch (e) {
+      print('Error updating schedule: $e');
+      throw e;
+    }
+  }
+  
+  // Toggle schedule active status
+  Future<void> toggleSchedule(String scheduleId, bool isActive) async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Update schedule in Firestore
+      await _firestore.collection('schedules').doc(scheduleId).update({
+        'isActive': isActive,
+        'updatedAt': FieldValue.serverTimestamp(),
+      });
+      
+      // Log this action
+      await logActivity(
+        user.uid,
+        user.phoneNumber ?? user.email ?? 'Unknown',
+        'toggle_schedule',
+        'system',
+        'schedule',
+        details: {
+          'scheduleId': scheduleId,
+          'isActive': isActive,
+        },
+      );
+      
+      print('Schedule ${isActive ? 'activated' : 'deactivated'} successfully: $scheduleId');
+    } catch (e) {
+      print('Error toggling schedule: $e');
+      throw e;
+    }
+  }
+  
+  // Delete a schedule
+  Future<void> deleteSchedule(String scheduleId) async {
+    try {
+      // Get current user
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not logged in');
+      }
+      
+      // Get schedule info for logging before deletion
+      final scheduleDoc = await _firestore.collection('schedules').doc(scheduleId).get();
+      String scheduleName = "Unknown";
+      
+      if (scheduleDoc.exists) {
+        final data = scheduleDoc.data();
+        scheduleName = data?['name'] ?? "Unknown";
+      }
+      
+      // Delete the schedule
+      await _firestore.collection('schedules').doc(scheduleId).delete();
+      
+      // Log this action
+      await logActivity(
+        user.uid,
+        user.phoneNumber ?? user.email ?? 'Unknown',
+        'delete_schedule',
+        'system',
+        'schedule',
+        details: {
+          'scheduleId': scheduleId,
+          'scheduleName': scheduleName,
+        },
+      );
+      
+      print('Schedule deleted successfully: $scheduleId');
+    } catch (e) {
+      print('Error deleting schedule: $e');
       throw e;
     }
   }

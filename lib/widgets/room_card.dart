@@ -5,11 +5,13 @@ import 'package:illumi_home/models/room.dart';
 class RoomCard extends StatelessWidget {
   final Room room;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress; // New callback for long press
 
   const RoomCard({
     Key? key,
     required this.room,
     required this.onTap,
+    this.onLongPress,
   }) : super(key: key);
 
   String _getRoomIcon(String roomName) {
@@ -43,6 +45,7 @@ class RoomCard extends StatelessWidget {
     
     return GestureDetector(
       onTap: onTap,
+      onLongPress: onLongPress, // Added support for long press
       child: Container(
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
