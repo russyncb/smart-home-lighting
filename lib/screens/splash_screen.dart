@@ -116,9 +116,9 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                       
                       // App name
                       const Text(
-                        'IllumiHome',
+                        'Smart Home Lighting',
                         style: TextStyle(
-                          fontSize: 36,
+                          fontSize: 28,
                           fontWeight: FontWeight.bold,
                           color: Colors.white,
                         ),

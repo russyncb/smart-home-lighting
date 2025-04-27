@@ -132,7 +132,7 @@ class _EmailSignupScreenState extends State<EmailSignupScreen> {
                   
                   // App name
                   const Text(
-                    'IllumiHome',
+                    'Smart Home Lighting',
                     style: TextStyle(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -481,7 +481,7 @@ class _EmailSignupScreenState extends State<EmailSignupScreen> {
                   // Footer
                   const SizedBox(height: 32),
                   const Text(
-                    'ILLUMIHOME SMART LIGHTING',
+                    'SMART LIGHTING',
                     style: TextStyle(
                       fontSize: 12,
                       color: Colors.white54,
