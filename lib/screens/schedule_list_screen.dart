@@ -212,7 +212,7 @@ class _ScheduleListScreenState extends State<ScheduleListScreen> {
                     Text(
                       'Schedules',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                       ),

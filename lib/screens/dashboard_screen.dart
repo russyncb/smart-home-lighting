@@ -4,6 +4,8 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:illumi_home/models/room.dart';
 import 'package:illumi_home/services/database_service.dart';
+import 'package:illumi_home/services/schedule_service.dart'; // New import
+import 'package:illumi_home/screens/schedule_list_screen.dart'; // New import
 import 'package:illumi_home/widgets/room_card.dart';
 import 'package:flutter/services.dart';
 import 'package:illumi_home/widgets/voice_command_button.dart';
@@ -19,11 +21,12 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   final DatabaseService _databaseService = DatabaseService();
+  final ScheduleService _scheduleService = ScheduleService(); // New service
   List<Room> _rooms = [];
   bool _isLoading = true;
   StreamSubscription? _roomsSubscription;
   int _selectedIndex = 0;
-  bool _isVoiceListening = false;
+  bool _isVoiceListening = true;
   late AnimationController _animationController;
   
   final List<Widget> _screens = [];
@@ -37,12 +40,19 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       vsync: this,
       duration: const Duration(milliseconds: 300),
     );
+    
+    // Start the schedule service
+    _scheduleService.startScheduleService();
   }
   
   @override
   void dispose() {
     _roomsSubscription?.cancel();
     _animationController.dispose();
+    
+    // Stop the schedule service
+    _scheduleService.stopScheduleService();
+    
     super.dispose();
   }
 
@@ -211,6 +221,62 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error adding room: $e')),
+      );
+    } finally {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+  
+  Future<void> _removeRoom(Room room) async {
+    try {
+      // Show confirmation dialog
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: const Color(0xFF1E293B),
+          title: Text(
+            'Delete ${room.name}',
+            style: const TextStyle(color: Colors.white)
+          ),
+          content: Text(
+            'Are you sure you want to delete this room and all its lights? This action cannot be undone.',
+            style: const TextStyle(color: Colors.white70),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('CANCEL', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade700,
+              ),
+              child: const Text('DELETE'),
+            ),
+          ],
+        ),
+      );
+      
+      if (confirmed == true) {
+        setState(() {
+          _isLoading = true;
+        });
+        
+        // Delete room from Firestore
+        await _databaseService.deleteRoom(room.id);
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Room "${room.name}" deleted successfully!')),
+        );
+        
+        // Rooms will update automatically via the subscription
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error deleting room: $e')),
       );
     } finally {
       setState(() {
@@ -675,23 +741,50 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       ),
                     ],
                   ),
-                  TextButton.icon(
-                    onPressed: () => _addNewRoom(RoomType.indoor),
-                    icon: const Icon(
-                      Icons.add,
-                      size: 18,
-                      color: Colors.amber,
-                    ),
-                    label: const Text(
-                      'New',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _addNewRoom(RoomType.indoor),
+                        icon: const Icon(
+                          Icons.add,
+                          size: 18,
+                          color: Colors.amber,
+                        ),
+                        label: const Text(
+                          'New',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.amber.withOpacity(0.1),
+                        ),
                       ),
-                    ),
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.amber.withOpacity(0.1),
-                    ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _indoorRooms.isEmpty 
+                            ? null 
+                            : () => _showRemoveRoomDialog(RoomType.indoor),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.red,
+                        ),
+                        label: const Text(
+                          'Remove',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: _indoorRooms.isEmpty 
+                              ? Colors.grey.withOpacity(0.1) 
+                              : Colors.red.withOpacity(0.1),
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -761,6 +854,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                               setState(() {});
                             }
                           },
+                          onLongPress: () => _showRoomOptionsBottomSheet(room),
                         );
                       },
                       childCount: _indoorRooms.length,
@@ -801,23 +895,50 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       ),
                     ],
                   ),
-                  TextButton.icon(
-                    onPressed: () => _addNewRoom(RoomType.outdoor),
-                    icon: const Icon(
-                      Icons.add,
-                      size: 18,
-                      color: Colors.amber,
-                    ),
-                    label: const Text(
-                      'New',
-                      style: TextStyle(
-                        color: Colors.amber,
-                        fontWeight: FontWeight.w500,
+                  Row(
+                    children: [
+                      TextButton.icon(
+                        onPressed: () => _addNewRoom(RoomType.outdoor),
+                        icon: const Icon(
+                          Icons.add,
+                          size: 18,
+                          color: Colors.amber,
+                        ),
+                        label: const Text(
+                          'New',
+                          style: TextStyle(
+                            color: Colors.amber,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: Colors.amber.withOpacity(0.1),
+                        ),
                       ),
-                    ),
-                    style: TextButton.styleFrom(
-                      backgroundColor: Colors.amber.withOpacity(0.1),
-                    ),
+                      const SizedBox(width: 8),
+                      TextButton.icon(
+                        onPressed: _outdoorRooms.isEmpty 
+                            ? null 
+                            : () => _showRemoveRoomDialog(RoomType.outdoor),
+                        icon: const Icon(
+                          Icons.delete_outline,
+                          size: 18,
+                          color: Colors.red,
+                        ),
+                        label: const Text(
+                          'Remove',
+                          style: TextStyle(
+                            color: Colors.red,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        style: TextButton.styleFrom(
+                          backgroundColor: _outdoorRooms.isEmpty 
+                              ? Colors.grey.withOpacity(0.1) 
+                              : Colors.red.withOpacity(0.1),
+                        ),
+                      ),
+                      ],
                   ),
                 ],
               ),
@@ -887,6 +1008,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                               setState(() {});
                             }
                           },
+                          onLongPress: () => _showRoomOptionsBottomSheet(room),
                         );
                       },
                       childCount: _outdoorRooms.length,
@@ -898,213 +1020,212 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
     );
   }
   
-  Widget _buildSchedulesScreen() {
-    final themeProvider = Provider.of<ThemeProvider>(context);
+  void _showRoomOptionsBottomSheet(Room room) {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
     
-    return CustomScrollView(
-      slivers: [
-        // App Bar
-        SliverAppBar(
-          floating: true,
-          pinned: true,
-          snap: false,
-          backgroundColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : Colors.white,
-          expandedHeight: 120.0,
-          flexibleSpace: FlexibleSpaceBar(
-            titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-            title: Column(
-              mainAxisAlignment: MainAxisAlignment.end,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.orange.withOpacity(0.1),
-                      ),
-                      child: const Icon(
-                        Icons.schedule_rounded,
-                        color: Colors.orange,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Text(
-                      'Schedules',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                        color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-            background: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: themeProvider.isDarkMode
-                      ? [const Color(0xFF0F172A), const Color(0xFF0F172A)]
-                      : [Colors.white, Colors.white],
-                ),
-              ),
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            color: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(20),
+              topRight: Radius.circular(20),
             ),
           ),
-          actions: [
-            IconButton(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
-              ),
-              onPressed: () {
-                // Add new schedule
-              },
-            ),
-            const SizedBox(width: 10),
-          ],
-        ),
-        
-        SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              // Sample schedule data
-              final schedules = [
-                {
-                  'name': 'Morning Routine', 
-                  'time': '06:30 AM', 
-                  'lights': ['Bedroom', 'Kitchen'],
-                  'days': ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'],
-                  'isActive': true,
-                },
-                {
-                  'name': 'Evening Outdoor Lights', 
-                  'time': '06:00 PM', 
-                  'lights': ['Porch Light', 'Pathway Lights'],
-                  'days': ['Every day'],
-                  'isActive': true,
-                },
-                {
-                  'name': 'Night Mode', 
-                  'time': '10:30 PM', 
-                  'lights': ['All indoor lights'],
-                  'days': ['Every day'],
-                  'isActive': false,
-                },
-              ];
-              
-              if (index >= schedules.length) return null;
-              
-              final schedule = schedules[index];
-              
-              return Container(
-                margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-                decoration: BoxDecoration(
-                  color: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.05),
-                      blurRadius: 10,
-                      spreadRadius: 0,
-                      offset: const Offset(0, 4),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header
+              Row(
+                children: [
+                  Container(
+                    width: 48,
+                    height: 48,
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    ListTile(
-                      contentPadding: const EdgeInsets.fromLTRB(20, 16, 16, 8),
-                      title: Text(
-                        schedule['name'] as String,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w600,
-                          color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const SizedBox(height: 8),
-                          Text(
-                            schedule['time'] as String,
-                            style: TextStyle(
-                              fontSize: 24,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.amber.shade400,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Lights: ${(schedule['lights'] as List).join(', ')}',
-                            style: TextStyle(
-                              color: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            'Days: ${(schedule['days'] as List).join(', ')}',
-                            style: TextStyle(
-                              color: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                      trailing: Switch(
-                        value: schedule['isActive'] as bool,
-                        onChanged: (value) {
-                          // Toggle schedule
-                        },
-                        activeColor: Colors.amber,
-                      ),
+                    child: Icon(
+                      room.type == RoomType.indoor ? Icons.house : Icons.yard,
+                      color: Colors.amber,
+                      size: 24,
                     ),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        TextButton.icon(
-                          onPressed: () {
-                            // Edit schedule
-                          },
-                          icon: const Icon(
-                            Icons.edit_outlined,
-                            size: 16,
-                          ),
-                          label: const Text('Edit'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
+                        Text(
+                          room.name,
+                          style: TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                           ),
                         ),
-                        TextButton.icon(
-                          onPressed: () {
-                            // Delete schedule
-                          },
-                          icon: const Icon(
-                            Icons.delete_outline,
-                            size: 16,
-                          ),
-                          label: const Text('Delete'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.red.shade300,
+                        Text(
+                          '${room.lights.length} ${room.lights.length == 1 ? 'light' : 'lights'}',
+                          style: TextStyle(
+                            color: themeProvider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700,
                           ),
                         ),
-                        const SizedBox(width: 8),
                       ],
                     ),
-                  ],
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              
+              // Options
+              ListTile(
+                leading: const Icon(Icons.visibility, color: Colors.blue),
+                title: Text(
+                  'View Room Details',
+                  style: TextStyle(
+                    color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                  ),
                 ),
-              );
-            },
-            childCount: 3, // Using fixed count of sample data
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.pushNamed(
+                    context,
+                    '/room/${room.id}',
+                    arguments: room,
+                  );
+                },
+              ),
+              
+              ListTile(
+                leading: const Icon(Icons.schedule, color: Colors.orange),
+                title: Text(
+                  'Create Schedule',
+                  style: TextStyle(
+                    color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Navigate to the schedule screen and add a room-specific schedule
+                  // this is not implemented yet
+                },
+              ),
+              
+              ListTile(
+                leading: const Icon(Icons.delete, color: Colors.red),
+                title: Text(
+                  'Delete Room',
+                  style: TextStyle(
+                    color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                  ),
+                ),
+                onTap: () {
+                  Navigator.pop(context);
+                  _removeRoom(room);
+                },
+              ),
+            ],
           ),
-        ),
-      ],
+        );
+      },
     );
+  }
+  
+  Future<void> _showRemoveRoomDialog(RoomType roomType) async {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    final rooms = roomType == RoomType.indoor ? _indoorRooms : _outdoorRooms;
+    
+    if (rooms.isEmpty) return;
+    
+    Room? selectedRoom;
+    
+    await showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setStateDialog) {
+          return AlertDialog(
+            backgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            title: Text(
+              'Remove ${roomType == RoomType.indoor ? 'Indoor' : 'Outdoor'} Room',
+              style: TextStyle(
+                color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+              ),
+            ),
+            content: SizedBox(
+              width: double.maxFinite,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    'Select a room to remove:',
+                    style: TextStyle(
+                      color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  SingleChildScrollView(
+                    child: Column(
+                      children: rooms.map((room) {
+                        return RadioListTile<Room>(
+                          title: Text(
+                            room.name,
+                            style: TextStyle(
+                              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                          subtitle: Text(
+                            '${room.lights.length} ${room.lights.length == 1 ? 'light' : 'lights'}',
+                            style: TextStyle(
+                              color: themeProvider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700,
+                            ),
+                          ),
+                          value: room,
+                          groupValue: selectedRoom,
+                          onChanged: (value) {
+                            setStateDialog(() {
+                              selectedRoom = value;
+                            });
+                          },
+                          activeColor: Colors.amber,
+                        );
+                      }).toList(),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: const Text('CANCEL'),
+              ),
+              ElevatedButton(
+                onPressed: selectedRoom == null
+                    ? null
+                    : () {
+                        Navigator.pop(context);
+                        _removeRoom(selectedRoom!);
+                      },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.red,
+                  foregroundColor: Colors.white,
+                ),
+                child: const Text('REMOVE'),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+  
+  Widget _buildSchedulesScreen() {
+    // Use the actual schedule list screen instead of the mock one
+    return const ScheduleListScreen();
   }
   
   Widget _buildSensorsScreen() {
@@ -1149,7 +1270,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     Text(
                       'Motion Sensors',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                       ),
@@ -1198,7 +1319,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                       const SizedBox(height: 8),
                       Text(
                         'Add outdoor lights with motion sensors to manage them here',
-                        textAlign: TextAlign.center, // ✅ Move it here
+                        textAlign: TextAlign.center,
                         style: TextStyle(
                           color: themeProvider.isDarkMode ? Colors.grey.shade600 : Colors.grey.shade500,
                           fontSize: 14,
@@ -1372,7 +1493,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
                     Text(
                       'Settings',
                       style: TextStyle(
-                        fontSize: 20,
+                        fontSize: 14,
                         fontWeight: FontWeight.bold,
                         color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                       ),
