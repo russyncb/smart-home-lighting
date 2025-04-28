@@ -4,13 +4,13 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:illumi_home/models/room.dart';
 import 'package:illumi_home/services/database_service.dart';
-import 'package:illumi_home/services/schedule_service.dart'; // New import
-import 'package:illumi_home/screens/schedule_list_screen.dart'; // New import
+import 'package:illumi_home/services/schedule_service.dart';
+import 'package:illumi_home/screens/schedule_list_screen.dart';
 import 'package:illumi_home/widgets/room_card.dart';
 import 'package:flutter/services.dart';
-import 'package:illumi_home/widgets/voice_command_button.dart';
 import 'package:illumi_home/services/theme_service.dart';
 import 'package:provider/provider.dart';
+import 'package:illumi_home/services/voice_command_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({Key? key}) : super(key: key);
@@ -21,13 +21,16 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProviderStateMixin {
   final DatabaseService _databaseService = DatabaseService();
-  final ScheduleService _scheduleService = ScheduleService(); // New service
+  final ScheduleService _scheduleService = ScheduleService();
   List<Room> _rooms = [];
   bool _isLoading = true;
   StreamSubscription? _roomsSubscription;
   int _selectedIndex = 0;
-  bool _isVoiceListening = true;
+  bool _isVoiceListening = false;
   late AnimationController _animationController;
+  late VoiceCommandService _voiceCommandService;
+  String? _voiceFeedbackMessage;
+  Timer? _feedbackTimer;
   
   final List<Widget> _screens = [];
   
@@ -41,6 +44,36 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
       duration: const Duration(milliseconds: 300),
     );
     
+    // Initialize voice command service
+    _voiceCommandService = VoiceCommandService(
+      onListeningStatusChanged: (isListening) {
+        setState(() {
+          _isVoiceListening = isListening;
+          if (isListening) {
+            _animationController.forward();
+          } else {
+            _animationController.reverse();
+          }
+        });
+      },
+      onFeedbackMessage: (message) {
+        setState(() {
+          _voiceFeedbackMessage = message;
+        });
+        
+        // Clear the feedback message after 5 seconds
+        _feedbackTimer?.cancel();
+        _feedbackTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) {
+            setState(() {
+              _voiceFeedbackMessage = null;
+            });
+          }
+        });
+      },
+    );
+    _voiceCommandService.initialize();
+    
     // Start the schedule service
     _scheduleService.startScheduleService();
   }
@@ -49,6 +82,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   void dispose() {
     _roomsSubscription?.cancel();
     _animationController.dispose();
+    _feedbackTimer?.cancel();
     
     // Stop the schedule service
     _scheduleService.stopScheduleService();
@@ -344,15 +378,7 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
 
   void _toggleVoiceListening() {
     HapticFeedback.mediumImpact();
-    setState(() {
-      _isVoiceListening = !_isVoiceListening;
-      if (_isVoiceListening) {
-        _animationController.forward();
-        _showVoiceCommandOverlay();
-      } else {
-        _animationController.reverse();
-      }
-    });
+    _voiceCommandService.toggleListening(_rooms);
   }
   
   void _showVoiceCommandOverlay() {
@@ -555,468 +581,543 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
   Widget _buildHomeScreen() {
     final themeProvider = Provider.of<ThemeProvider>(context);
     
-    return RefreshIndicator(
-      onRefresh: _loadRooms,
-      color: Colors.amber,
-      child: CustomScrollView(
-        slivers: [
-          // App Bar
-          SliverAppBar(
-            floating: true,
-            pinned: true,
-            snap: false,
-            backgroundColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : Colors.white,
-            expandedHeight: 120.0,
-            flexibleSpace: FlexibleSpaceBar(
-              titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
-              title: Column(
-                mainAxisAlignment: MainAxisAlignment.end,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+    return Stack(
+      children: [
+        RefreshIndicator(
+          onRefresh: _loadRooms,
+          color: Colors.amber,
+          child: CustomScrollView(
+            slivers: [
+              // App Bar
+              SliverAppBar(
+                floating: true,
+                pinned: true,
+                snap: false,
+                backgroundColor: themeProvider.isDarkMode ? const Color(0xFF0F172A) : Colors.white,
+                expandedHeight: 120.0,
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsets.only(left: 20, bottom: 16),
+                  title: Column(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: Colors.amber.withOpacity(0.1),
-                        ),
-                        child: const Icon(
-                          Icons.home_rounded,
-                          color: Colors.amber,
-                          size: 20,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Text(
-                        'Smart Home Lighting',
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.bold,
-                          color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                        ),
+                      Row(
+                        children: [
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: Colors.amber.withOpacity(0.1),
+                            ),
+                            child: const Icon(
+                              Icons.home_rounded,
+                              color: Colors.amber,
+                              size: 20,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Smart Home Lighting',
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
-              background: Container(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: themeProvider.isDarkMode
-                        ? [const Color(0xFF0F172A), const Color(0xFF0F172A)]
-                        : [Colors.white, Colors.white],
+                  background: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: themeProvider.isDarkMode
+                            ? [const Color(0xFF0F172A), const Color(0xFF0F172A)]
+                            : [Colors.white, Colors.white],
+                      ),
+                    ),
                   ),
                 ),
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.logout,
+                      color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
+                    ),
+                    onPressed: _signOut,
+                  ),
+                  const SizedBox(width: 10),
+                ],
               ),
-            ),
-            actions: [
-              VoiceCommandButton(
-                isListening: _isVoiceListening,
-                onPressed: _toggleVoiceListening,
-                animationController: _animationController,
-              ),
-              IconButton(
-                icon: Icon(
-                  Icons.logout,
-                  color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
-                ),
-                onPressed: _signOut,
-              ),
-              const SizedBox(width: 10),
-            ],
-          ),
-          
-          // Status summary
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+              
+              // Status summary
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Container(
-                          height: 100,
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topLeft,
-                              end: Alignment.bottomRight,
-                              colors: [Colors.amber.shade600.withOpacity(0.8), Colors.amber.shade300],
-                            ),
-                            borderRadius: BorderRadius.circular(16),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.amber.withOpacity(0.2),
-                                blurRadius: 10,
-                                offset: const Offset(0, 4),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 48,
-                                height: 48,
-                                decoration: BoxDecoration(
-                                  color: Colors.white.withOpacity(0.2),
-                                  shape: BoxShape.circle,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Container(
+                              height: 100,
+                              padding: const EdgeInsets.all(16),
+                              decoration: BoxDecoration(
+                                gradient: LinearGradient(
+                                  begin: Alignment.topLeft,
+                                  end: Alignment.bottomRight,
+                                  colors: [Colors.amber.shade600.withOpacity(0.8), Colors.amber.shade300],
                                 ),
-                                child: const Icon(
-                                  Icons.lightbulb,
-                                  color: Colors.white,
-                                  size: 24,
-                                ),
-                              ),
-                              const SizedBox(width: 16),
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  const Text(
-                                    'Active Lights',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 14,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    '$_activeLightsCount / $_totalLightsCount',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                borderRadius: BorderRadius.circular(16),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.amber.withOpacity(0.2),
+                                    blurRadius: 10,
+                                    offset: const Offset(0, 4),
                                   ),
                                 ],
                               ),
+                              child: Row(
+                                children: [
+                                  Container(
+                                    width: 48,
+                                    height: 48,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withOpacity(0.2),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Icon(
+                                      Icons.lightbulb,
+                                      color: Colors.white,
+                                      size: 24,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      const Text(
+                                        'Active Lights',
+                                        style: TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 14,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        '$_activeLightsCount / $_totalLightsCount',
+                                        style: const TextStyle(
+                                          color: Colors.white,
+                                          fontSize: 24,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Indoor rooms section
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Colors.blue.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.house_rounded,
+                              color: Colors.blue.shade400,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'Indoor',
+                            style: TextStyle(
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
+                      Row(
+                        children: [
+                          TextButton.icon(
+                            onPressed: () => _addNewRoom(RoomType.indoor),
+                            icon: const Icon(
+                              Icons.add,
+                              size: 18,
+                              color: Colors.amber,
+                            ),
+                            label: const Text(
+                              'New',
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: Colors.amber.withOpacity(0.1),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: _indoorRooms.isEmpty 
+                                ? null 
+                                : () => _showRemoveRoomDialog(RoomType.indoor),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.red,
+                            ),
+                            label: const Text(
+                              'Remove',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: _indoorRooms.isEmpty 
+                                  ? Colors.grey.withOpacity(0.1) 
+                                  : Colors.red.withOpacity(0.1),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Indoor rooms grid
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                sliver: _indoorRooms.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          alignment: Alignment.center,
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.home,
+                                size: 48,
+                                color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No indoor rooms found',
+                                style: TextStyle(
+                                  color: themeProvider.isDarkMode ? Colors.grey.shade500 : Colors.grey.shade700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () => _addNewRoom(RoomType.indoor),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber.shade600,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                ),
+                                child: const Text(
+                                  'ADD INDOOR ROOM',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
                             ],
                           ),
                         ),
+                      )
+                    : SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.9,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final room = _indoorRooms[index];
+                            return RoomCard(
+                              key: ValueKey('room-${room.id}'),
+                              room: room,
+                              onTap: () async {
+                                await Navigator.pushNamed(
+                                  context,
+                                  '/room/${room.id}',
+                                  arguments: room,
+                                );
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                              },
+                              onLongPress: () => _showRoomOptionsBottomSheet(room),
+                            );
+                          },
+                          childCount: _indoorRooms.length,
+                        ),
                       ),
-                    ],
-                  ),
-                ],
               ),
-            ),
-          ),
-          
-          // Indoor rooms section
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
+              
+              // Outdoor rooms section
+              SliverToBoxAdapter(
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.blue.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.house_rounded,
-                          color: Colors.blue.shade400,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Indoor',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _addNewRoom(RoomType.indoor),
-                        icon: const Icon(
-                          Icons.add,
-                          size: 18,
-                          color: Colors.amber,
-                        ),
-                        label: const Text(
-                          'New',
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.amber.withOpacity(0.1),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: _indoorRooms.isEmpty 
-                            ? null 
-                            : () => _showRemoveRoomDialog(RoomType.indoor),
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.red,
-                        ),
-                        label: const Text(
-                          'Remove',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: _indoorRooms.isEmpty 
-                              ? Colors.grey.withOpacity(0.1) 
-                              : Colors.red.withOpacity(0.1),
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Indoor rooms grid
-          SliverPadding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            sliver: _indoorRooms.isEmpty
-                ? SliverToBoxAdapter(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 30),
-                      alignment: Alignment.center,
-                      child: Column(
+                      Row(
                         children: [
-                          Icon(
-                            Icons.home,
-                            size: 48,
-                            color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade400,
+                          Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: Colors.green.withOpacity(0.1),
+                              shape: BoxShape.circle,
+                            ),
+                            child: Icon(
+                              Icons.yard_rounded,
+                              color: Colors.green.shade400,
+                              size: 18,
+                            ),
                           ),
-                          const SizedBox(height: 16),
+                          const SizedBox(width: 10),
                           Text(
-                            'No indoor rooms found',
+                            'Outdoor',
                             style: TextStyle(
-                              color: themeProvider.isDarkMode ? Colors.grey.shade500 : Colors.grey.shade700,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
-                            onPressed: () => _addNewRoom(RoomType.indoor),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber.shade600,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                            ),
-                            child: const Text(
-                              'ADD INDOOR ROOM',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  )
-                : SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.9,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final room = _indoorRooms[index];
-                        return RoomCard(
-                          key: ValueKey('room-${room.id}'),
-                          room: room,
-                          onTap: () async {
-                            await Navigator.pushNamed(
-                              context,
-                              '/room/${room.id}',
-                              arguments: room,
-                            );
-                            if (mounted) {
-                              setState(() {});
-                            }
-                          },
-                          onLongPress: () => _showRoomOptionsBottomSheet(room),
-                        );
-                      },
-                      childCount: _indoorRooms.length,
-                    ),
-                  ),
-          ),
-          
-          // Outdoor rooms section
-          SliverToBoxAdapter(
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(20, 30, 20, 10),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: Colors.green.withOpacity(0.1),
-                          shape: BoxShape.circle,
-                        ),
-                        child: Icon(
-                          Icons.yard_rounded,
-                          color: Colors.green.shade400,
-                          size: 18,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      Text(
-                        'Outdoor',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      TextButton.icon(
-                        onPressed: () => _addNewRoom(RoomType.outdoor),
-                        icon: const Icon(
-                          Icons.add,
-                          size: 18,
-                          color: Colors.amber,
-                        ),
-                        label: const Text(
-                          'New',
-                          style: TextStyle(
-                            color: Colors.amber,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: Colors.amber.withOpacity(0.1),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      TextButton.icon(
-                        onPressed: _outdoorRooms.isEmpty 
-                            ? null 
-                            : () => _showRemoveRoomDialog(RoomType.outdoor),
-                        icon: const Icon(
-                          Icons.delete_outline,
-                          size: 18,
-                          color: Colors.red,
-                        ),
-                        label: const Text(
-                          'Remove',
-                          style: TextStyle(
-                            color: Colors.red,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                        style: TextButton.styleFrom(
-                          backgroundColor: _outdoorRooms.isEmpty 
-                              ? Colors.grey.withOpacity(0.1) 
-                              : Colors.red.withOpacity(0.1),
-                        ),
-                      ),
-                      ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          
-          // Outdoor rooms grid
-          SliverPadding(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
-            sliver: _outdoorRooms.isEmpty
-                ? SliverToBoxAdapter(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 30),
-                      alignment: Alignment.center,
-                      child: Column(
+                      Row(
                         children: [
-                          Icon(
-                            Icons.yard,
-                            size: 48,
-                            color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade400,
-                          ),
-                          const SizedBox(height: 16),
-                          Text(
-                            'No outdoor rooms found',
-                            style: TextStyle(
-                              color: themeProvider.isDarkMode ? Colors.grey.shade500 : Colors.grey.shade700,
-                              fontSize: 16,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          ElevatedButton(
+                          TextButton.icon(
                             onPressed: () => _addNewRoom(RoomType.outdoor),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: Colors.amber.shade600,
-                              foregroundColor: Colors.black,
-                              padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                            icon: const Icon(
+                              Icons.add,
+                              size: 18,
+                              color: Colors.amber,
                             ),
-                            child: const Text(
-                              'ADD OUTDOOR ROOM',
-                              style: TextStyle(fontWeight: FontWeight.bold),
+                            label: const Text(
+                              'New',
+                              style: TextStyle(
+                                color: Colors.amber,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(backgroundColor: Colors.amber.withOpacity(0.1),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          TextButton.icon(
+                            onPressed: _outdoorRooms.isEmpty 
+                                ? null 
+                                : () => _showRemoveRoomDialog(RoomType.outdoor),
+                            icon: const Icon(
+                              Icons.delete_outline,
+                              size: 18,
+                              color: Colors.red,
+                            ),
+                            label: const Text(
+                              'Remove',
+                              style: TextStyle(
+                                color: Colors.red,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            style: TextButton.styleFrom(
+                              backgroundColor: _outdoorRooms.isEmpty 
+                                  ? Colors.grey.withOpacity(0.1) 
+                                  : Colors.red.withOpacity(0.1),
                             ),
                           ),
                         ],
                       ),
-                    ),
-                  )
-                : SliverGrid(
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      childAspectRatio: 0.9,
-                      crossAxisSpacing: 16,
-                      mainAxisSpacing: 16,
-                    ),
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final room = _outdoorRooms[index];
-                        return RoomCard(
-                          key: ValueKey('room-${room.id}'),
-                          room: room,
-                          onTap: () async {
-                            await Navigator.pushNamed(
-                              context,
-                              '/room/${room.id}',
-                              arguments: room,
+                    ],
+                  ),
+                ),
+              ),
+              
+              // Outdoor rooms grid
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 100),
+                sliver: _outdoorRooms.isEmpty
+                    ? SliverToBoxAdapter(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(vertical: 30),
+                          alignment: Alignment.center,
+                          child: Column(
+                            children: [
+                              Icon(
+                                Icons.yard,
+                                size: 48,
+                                color: themeProvider.isDarkMode ? Colors.grey.shade700 : Colors.grey.shade400,
+                              ),
+                              const SizedBox(height: 16),
+                              Text(
+                                'No outdoor rooms found',
+                                style: TextStyle(
+                                  color: themeProvider.isDarkMode ? Colors.grey.shade500 : Colors.grey.shade700,
+                                  fontSize: 16,
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+                              ElevatedButton(
+                                onPressed: () => _addNewRoom(RoomType.outdoor),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Colors.amber.shade600,
+                                  foregroundColor: Colors.black,
+                                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                                ),
+                                child: const Text(
+                                  'ADD OUTDOOR ROOM',
+                                  style: TextStyle(fontWeight: FontWeight.bold),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                    : SliverGrid(
+                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          childAspectRatio: 0.9,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
+                        ),
+                        delegate: SliverChildBuilderDelegate(
+                          (context, index) {
+                            final room = _outdoorRooms[index];
+                            return RoomCard(
+                              key: ValueKey('room-${room.id}'),
+                              room: room,
+                              onTap: () async {
+                                await Navigator.pushNamed(
+                                  context,
+                                  '/room/${room.id}',
+                                  arguments: room,
+                                );
+                                if (mounted) {
+                                  setState(() {});
+                                }
+                              },
+                              onLongPress: () => _showRoomOptionsBottomSheet(room),
                             );
-                            if (mounted) {
-                              setState(() {});
-                            }
                           },
-                          onLongPress: () => _showRoomOptionsBottomSheet(room),
-                        );
-                      },
-                      childCount: _outdoorRooms.length,
+                          childCount: _outdoorRooms.length,
+                        ),
+                      ),
+              ),
+            ],
+          ),
+        ),
+        
+        // Voice feedback message
+        if (_voiceFeedbackMessage != null)
+          Positioned(
+            bottom: 100,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+              decoration: BoxDecoration(
+                color: themeProvider.isDarkMode 
+                    ? Colors.grey.shade800.withOpacity(0.9) 
+                    : Colors.grey.shade900.withOpacity(0.9),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 10,
+                    spreadRadius: 2,
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    _isVoiceListening ? Icons.mic : Icons.check_circle_outline,
+                    color: _isVoiceListening ? Colors.red : Colors.green,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      _voiceFeedbackMessage!,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                      ),
                     ),
                   ),
+                ],
+              ),
+            ),
           ),
-        ],
-      ),
+          
+        // Floating voice command button
+        Positioned(
+          right: 16,
+          bottom: 80,
+          child: FloatingActionButton(
+            onPressed: _toggleVoiceListening,
+            backgroundColor: _isVoiceListening ? Colors.red : Colors.amber,
+            child: AnimatedBuilder(
+              animation: _animationController,
+              builder: (context, child) {
+                return Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: _isVoiceListening 
+                            ? Colors.red.withOpacity(0.3) 
+                            : Colors.amber.withOpacity(0.3),
+                        blurRadius: 8,
+                        spreadRadius: 2 + (_animationController.value * 3),
+                      ),
+                    ],
+                  ),
+                  child: Icon(
+                    _isVoiceListening ? Icons.mic : Icons.mic_none,
+                    color: Colors.white,
+                  ),
+                );
+              },
+            ),
+          ),
+        ),
+      ],
     );
   }
   
@@ -1515,7 +1616,6 @@ class _DashboardScreenState extends State<DashboardScreen> with SingleTickerProv
             ),
           ),
         ),
-        
         SliverToBoxAdapter(
           child: Container(
             padding: const EdgeInsets.all(20),

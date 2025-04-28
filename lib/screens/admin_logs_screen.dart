@@ -135,6 +135,38 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     }
   }
 
+  // Get the user identifier (email or phone)
+  String _getUserIdentifier(Map<String, dynamic> log) {
+    // First try email
+    final email = log['email'];
+    if (email != null && email.toString().isNotEmpty) {
+      return email.toString();
+    }
+    
+    // Then try phone number
+    final phone = log['phoneNumber'];
+    if (phone != null && phone.toString().isNotEmpty) {
+      return phone.toString();
+    }
+    
+    // Finally try generic identifier field
+    final identifier = log['identifier'];
+    if (identifier != null && identifier.toString().isNotEmpty) {
+      return identifier.toString();
+    }
+    
+    return 'Unknown user';
+  }
+
+  // Get icon based on user type (email or phone)
+  IconData _getUserIcon(Map<String, dynamic> log) {
+    final email = log['email'];
+    if (email != null && email.toString().isNotEmpty) {
+      return Icons.email;
+    }
+    return Icons.phone_android;
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -310,12 +342,25 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     const SizedBox(height: 6),
-                                    Text(
-                                      'User: ${log['phoneNumber'] ?? 'Unknown user'}',
-                                      style: TextStyle(
-                                        color: themeProvider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700,
-                                        fontSize: 14,
-                                      ),
+                                    Row(
+                                      children: [
+                                        Icon(
+                                          _getUserIcon(log),
+                                          size: 14,
+                                          color: themeProvider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Expanded(
+                                          child: Text(
+                                            _getUserIdentifier(log),
+                                            style: TextStyle(
+                                              color: themeProvider.isDarkMode ? Colors.grey.shade400 : Colors.grey.shade700,
+                                              fontSize: 14,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
@@ -389,7 +434,15 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           const SizedBox(height: 20),
           _buildDetailRow('Action', log['action'] ?? 'Unknown'),
           _buildDetailRow('User ID', log['userId'] ?? 'Unknown'),
-          _buildDetailRow('Phone', log['phoneNumber'] ?? 'Unknown'),
+          
+          // Show email if available
+          if (log['email'] != null && log['email'].toString().isNotEmpty)
+            _buildDetailRow('Email', log['email']),
+          
+          // Show phone if available
+          if (log['phoneNumber'] != null && log['phoneNumber'].toString().isNotEmpty)
+            _buildDetailRow('Phone', log['phoneNumber']),
+            
           _buildDetailRow('Room ID', log['roomId'] ?? 'Unknown'),
           _buildDetailRow('Light ID', log['lightId'] ?? 'Unknown'),
           _buildDetailRow('Timestamp', _formatTimestamp(log['timestamp'])),

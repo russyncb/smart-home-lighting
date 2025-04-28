@@ -378,7 +378,7 @@ class DatabaseService {
   }
 
   // Toggle light on/off with improved implementation
-  Future<void> toggleLight(String roomId, String lightId, bool newState) async {
+  Future<void> toggleLight(String roomId, String lightId, bool newState, {String source = 'manual'}) async {
     try {
       // Get the current user for logging
       final user = FirebaseAuth.instance.currentUser;
@@ -425,11 +425,12 @@ class DatabaseService {
             details: {
               'lightName': lightName,
               'newState': newState,
+              'source': source, // Added source parameter
             },
           );
         }
         
-        print('Light ${newState ? 'turned on' : 'turned off'} successfully');
+        print('Light ${newState ? 'turned on' : 'turned off'} successfully via ${source}');
       });
     } catch (e) {
       print('Error toggling light: $e');
@@ -563,6 +564,7 @@ class DatabaseService {
                 'roomName': roomData['name'] ?? 'Unknown room',
                 'newState': newState,
                 'category': category,
+                'source': 'voice_command',
               },
             );
           }
@@ -574,8 +576,68 @@ class DatabaseService {
     }
   }
 
+  // Toggle all lights (wrapper for voice command function)
+  Future<void> toggleAllLights(bool newState) async {
+    await _toggleAllLights('all', newState);
+  }
+
+  // Toggle all lights by type (wrapper for voice command function)
+  Future<void> toggleAllLightsByType(String type, bool newState) async {
+    String category = 'all';
+    if (type == 'indoor') {
+      category = 'all_indoor';
+    } else if (type == 'outdoor') {
+      category = 'all_outdoor';
+    }
+    await _toggleAllLights(category, newState);
+  }
+
+  // Toggle all lights in a specific room
+  Future<void> toggleAllLightsInRoom(String roomId, bool newState) async {
+    try {
+      final roomDoc = await _firestore.collection('rooms').doc(roomId).get();
+      final user = FirebaseAuth.instance.currentUser;
+      
+      if (!roomDoc.exists) {
+        throw Exception('Room not found');
+      }
+      
+      final roomData = roomDoc.data() as Map<String, dynamic>;
+      final lights = List<Map<String, dynamic>>.from(roomData['lights']);
+      
+      for (int i = 0; i < lights.length; i++) {
+        lights[i]['isOn'] = newState;
+      }
+      
+      await _firestore.collection('rooms').doc(roomId).update({
+        'lights': lights,
+      });
+      
+      // Log this bulk action
+      if (user != null) {
+        await logActivity(
+          user.uid,
+          user.phoneNumber ?? user.email ?? 'Unknown',
+          'toggle_room_lights',
+          roomId,
+          'all',
+          details: {
+            'roomName': roomData['name'] ?? 'Unknown room',
+            'newState': newState,
+            'source': 'voice_command',
+          },
+        );
+      }
+      
+      print('All lights in room ${roomData['name']} ${newState ? 'turned on' : 'turned off'} successfully');
+    } catch (e) {
+      print('Error toggling room lights: $e');
+      throw e;
+    }
+  }
+
   // Adjust light brightness
-  Future<void> adjustBrightness(String roomId, String lightId, int brightness) async {
+  Future<void> adjustBrightness(String roomId, String lightId, int brightness, {String source = 'manual'}) async {
     try {
       // Get the current user for logging
       final user = FirebaseAuth.instance.currentUser;
@@ -622,11 +684,12 @@ class DatabaseService {
             details: {
               'lightName': lightName,
               'brightness': brightness,
+              'source': source,
             },
           );
         }
         
-        print('Light brightness adjusted successfully');
+        print('Light brightness adjusted successfully via $source');
       });
     } catch (e) {
       print('Error adjusting light brightness: $e');
