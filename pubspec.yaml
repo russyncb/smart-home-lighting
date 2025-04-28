@@ -18,7 +18,7 @@ dependencies:
   intl: ^0.18.0
   provider: ^6.0.5  # Added for state management
   shared_preferences: ^2.2.2  # Added for theme preferences
-  speech_to_text: ^6.1.1  # Added for voice command functionality
+  speech_to_text: ^6.6.2  # Added for voice command functionality
 
 dev_dependencies:
   flutter_test:
