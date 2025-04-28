@@ -16,9 +16,10 @@ dependencies:
   cloud_firestore: ^5.6.6
   flutter_svg: ^2.0.10+1
   intl: ^0.20.2
-  provider: ^6.0.5  # Added for state management
-  shared_preferences: ^2.2.2  # Added for theme preferences
-  speech_to_text: ^7.0.0  # Added for voice command functionality
+  provider: ^6.0.5  # For state management
+  shared_preferences: ^2.2.2  # For theme preferences
+  speech_to_text: ^7.0.0  # For voice command functionality
+  permission_handler: ^10.2.0  # Fixed indentation
 
 dev_dependencies:
   flutter_test:

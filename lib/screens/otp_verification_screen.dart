@@ -67,7 +67,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
       
       // Check if this is a new user
       if (userCredential.additionalUserInfo?.isNewUser ?? false) {
-        // Setup rooms in database (changed from setupUserData to setupRooms)
+        // Setup rooms in database
         await DatabaseService().setupRooms();
         print('New user detected - created demo rooms');
       } else {
@@ -96,6 +96,12 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // Format the phone number to handle overflow
+    String formattedPhone = widget.phoneNumber;
+    if (formattedPhone.length > 15) {
+      formattedPhone = formattedPhone.substring(0, 12) + '...';
+    }
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -189,62 +195,78 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            'Enter the 6-digit code sent to ${widget.phoneNumber}',
-                            style: const TextStyle(
-                              fontSize: 13,
-                              color: Colors.white54,
-                            ),
+                          // Fixed phone number text display
+                          Wrap(
+                            children: [
+                              Text(
+                                'Enter the 6-digit code sent to ',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.white54,
+                                ),
+                              ),
+                              Text(
+                                formattedPhone,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: Colors.amber,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ],
                           ),
                           const SizedBox(height: 16),
                           
                           // OTP input fields
-                          Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: List.generate(
-                              6,
-                              (index) => SizedBox(
-                                width: 48,
-                                height: 48,
-                                child: TextField(
-                                  controller: _otpControllers[index],
-                                  focusNode: _focusNodes[index],
-                                  keyboardType: TextInputType.number,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    fontSize: 20,
-                                    fontWeight: FontWeight.bold,
-                                    color: Colors.white,
-                                  ),
-                                  maxLength: 1,
-                                  decoration: InputDecoration(
-                                    counterText: '',
-                                    filled: true,
-                                    fillColor: const Color(0xFF334155),
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: BorderSide(color: Colors.grey.shade700),
+                          Container(
+                            height: 55, // Fixed height for OTP row
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: List.generate(
+                                6,
+                                (index) => SizedBox(
+                                  width: MediaQuery.of(context).size.width / 8,
+                                  child: TextField(
+                                    controller: _otpControllers[index],
+                                    focusNode: _focusNodes[index],
+                                    keyboardType: TextInputType.number,
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontSize: 20,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
                                     ),
-                                    focusedBorder: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                      borderSide: const BorderSide(color: Colors.amber),
+                                    maxLength: 1,
+                                    decoration: InputDecoration(
+                                      counterText: '',
+                                      filled: true,
+                                      fillColor: const Color(0xFF334155),
+                                      border: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: BorderSide(color: Colors.grey.shade700),
+                                      ),
+                                      focusedBorder: OutlineInputBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                        borderSide: const BorderSide(color: Colors.amber),
+                                      ),
                                     ),
-                                  ),
-                                  inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
-                                  ],
-                                  onChanged: (value) {
-                                    if (value.isNotEmpty) {
-                                      // Move to next field
-                                      if (index < 5) {
-                                        _focusNodes[index + 1].requestFocus();
-                                      } else {
-                                        // Last digit entered, verify OTP
-                                        _focusNodes[index].unfocus();
-                                        _verifyOTP();
+                                    inputFormatters: [
+                                      FilteringTextInputFormatter.digitsOnly,
+                                    ],
+                                    onChanged: (value) {
+                                      if (value.isNotEmpty) {
+                                        // Move to next field
+                                        if (index < 5) {
+                                          _focusNodes[index + 1].requestFocus();
+                                        } else {
+                                          // Last digit entered, verify OTP
+                                          _focusNodes[index].unfocus();
+                                          _verifyOTP();
+                                        }
                                       }
-                                    }
-                                  },
+                                    },
+                                  ),
                                 ),
                               ),
                             ),

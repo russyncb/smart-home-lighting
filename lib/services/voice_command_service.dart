@@ -4,6 +4,7 @@ import 'package:speech_to_text/speech_recognition_result.dart';
 import 'package:flutter/material.dart';
 import 'package:illumi_home/models/room.dart';
 import 'package:illumi_home/services/database_service.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 class VoiceCommandService {
   final SpeechToText _speechToText = SpeechToText();
@@ -25,16 +26,42 @@ class VoiceCommandService {
   
   Future<void> initialize() async {
     if (!_isInitialized) {
-      _isInitialized = await _speechToText.initialize(
-        onError: (error) => onFeedbackMessage("Error: $error"),
-        onStatus: (status) {
-          print("Speech recognition status: $status");
-          if (status == "done" || status == "notListening") {
-            _isListening = false;
-            onListeningStatusChanged(false);
-          }
-        },
-      );
+      // First request microphone permission
+      final status = await Permission.microphone.request();
+      if (status != PermissionStatus.granted) {
+        onFeedbackMessage("Microphone permission denied");
+        return;
+      }
+      
+      try {
+        _isInitialized = await _speechToText.initialize(
+          onError: (error) {
+            print("Speech recognition error: $error");
+            onFeedbackMessage("Error: $error");
+          },
+          onStatus: (status) {
+            print("Speech recognition status: $status");
+            if (status == "done" || status == "notListening") {
+              _isListening = false;
+              onListeningStatusChanged(false);
+            }
+          },
+          debugLogging: true, // Enable debugging
+        );
+        
+        if (_isInitialized) {
+          print("Speech recognition initialized successfully");
+          // Get available locales to diagnose issues
+          final locales = await _speechToText.locales();
+          print("Available locales: ${locales.map((l) => l.localeId).join(', ')}");
+        } else {
+          print("Failed to initialize speech recognition");
+          onFeedbackMessage("Speech recognition not available on this device");
+        }
+      } catch (e) {
+        print("Exception during speech recognition initialization: $e");
+        onFeedbackMessage("Error initializing speech: $e");
+      }
     }
   }
   
@@ -47,36 +74,81 @@ class VoiceCommandService {
       await _speechToText.stop();
       _isListening = false;
       onListeningStatusChanged(false);
+      onFeedbackMessage("Stopped listening");
       return;
     }
     
     if (_isInitialized) {
-      _isListening = await _speechToText.listen(
-        onResult: (result) => _processVoiceResult(result, rooms),
-        listenFor: const Duration(seconds: 30),
-        pauseFor: const Duration(seconds: 5),
-        partialResults: false,
-        localeId: "en_US",
-        cancelOnError: true,
-      );
-      onListeningStatusChanged(_isListening);
+      try {
+        // Get available locales
+        final locales = await _speechToText.locales();
+        String localeId = "en_US";
+        
+        // Try to find a compatible locale
+        if (!locales.any((locale) => locale.localeId == "en_US")) {
+          // If en_US is not available, try to find any English locale
+          final englishLocales = locales.where((locale) => 
+            locale.localeId.startsWith("en_") || locale.localeId == "en");
+          
+          if (englishLocales.isNotEmpty) {
+            localeId = englishLocales.first.localeId;
+            print("Using alternative English locale: $localeId");
+          } else if (locales.isNotEmpty) {
+            // If no English locale, use the first available
+            localeId = locales.first.localeId;
+            print("No English locale available, using: $localeId");
+          }
+        }
+        
+        _isListening = await _speechToText.listen(
+          onResult: (result) => _processVoiceResult(result, rooms),
+          listenFor: const Duration(seconds: 30),
+          pauseFor: const Duration(seconds: 5),
+          partialResults: true,  // Changed to true to get more feedback
+          localeId: localeId,
+          cancelOnError: false,  // Don't cancel on error
+          onSoundLevelChange: (level) {
+            // Optional: can be used to show a visual indicator of sound level
+            // print("Sound level: $level");
+          },
+        );
+        
+        if (_isListening) {
+          onFeedbackMessage("Listening... Say a command");
+        } else {
+          onFeedbackMessage("Couldn't start listening. Please try again.");
+        }
+        
+        onListeningStatusChanged(_isListening);
+      } catch (e) {
+        print("Exception during speech listening: $e");
+        onFeedbackMessage("Error starting speech recognition: $e");
+        _isListening = false;
+        onListeningStatusChanged(false);
+      }
     } else {
-      onFeedbackMessage("Speech recognition not available");
+      onFeedbackMessage("Speech recognition not available. Please check app permissions.");
     }
   }
   
   void _processVoiceResult(SpeechRecognitionResult result, List<Room> rooms) async {
-    if (result.finalResult) {
+    // Show partial results to give user feedback
+    if (result.recognizedWords.isNotEmpty && !result.finalResult) {
+      print("Partial result: ${result.recognizedWords}");
+      // Optionally show partial results
+      // onFeedbackMessage("I heard: \"${result.recognizedWords}\"");
+    }
+    
+    if (result.finalResult && result.recognizedWords.isNotEmpty) {
       final command = result.recognizedWords.toLowerCase();
-      onFeedbackMessage("I heard: \"$command\"");
+      print("Final result: $command");
       
-      if (command.isEmpty) {
-        onFeedbackMessage("I didn't catch that. Please try again.");
-        return;
-      }
+      onFeedbackMessage("I heard: \"$command\"");
       
       // Process the command
       await _executeCommand(command, rooms);
+    } else if (result.finalResult && result.recognizedWords.isEmpty) {
+      onFeedbackMessage("I didn't catch that. Please try again.");
     }
   }
   

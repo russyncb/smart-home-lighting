@@ -5,7 +5,7 @@ import 'package:illumi_home/models/room.dart';
 class RoomCard extends StatelessWidget {
   final Room room;
   final VoidCallback onTap;
-  final VoidCallback? onLongPress; // New callback for long press
+  final VoidCallback? onLongPress;
 
   const RoomCard({
     Key? key,
@@ -45,8 +45,13 @@ class RoomCard extends StatelessWidget {
     
     return GestureDetector(
       onTap: onTap,
-      onLongPress: onLongPress, // Added support for long press
+      onLongPress: onLongPress,
       child: Container(
+        // Set a specific max height to avoid overflow
+        constraints: const BoxConstraints(
+          minHeight: 150,
+          maxHeight: 200,
+        ),
         decoration: BoxDecoration(
           color: const Color(0xFF1E293B),
           borderRadius: BorderRadius.circular(16),
@@ -59,11 +64,12 @@ class RoomCard extends StatelessWidget {
           ],
         ),
         child: Column(
+          mainAxisSize: MainAxisSize.min, // Use minimum space needed
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Room header with icon and lights count
-            Container(
-              padding: const EdgeInsets.all(16),
+            Padding(
+              padding: const EdgeInsets.all(12), // Slightly reduced padding
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -71,8 +77,8 @@ class RoomCard extends StatelessWidget {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Container(
-                        width: 48,
-                        height: 48,
+                        width: 40, // Slightly smaller
+                        height: 40, // Slightly smaller
                         decoration: BoxDecoration(
                           color: roomColor.withOpacity(0.2),
                           shape: BoxShape.circle,
@@ -80,17 +86,17 @@ class RoomCard extends StatelessWidget {
                         child: Center(
                           child: Text(
                             _getRoomIcon(room.name),
-                            style: const TextStyle(fontSize: 24),
+                            style: const TextStyle(fontSize: 20), // Slightly smaller
                           ),
                         ),
                       ),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), // Slightly smaller
                         decoration: BoxDecoration(
                           color: activeLights > 0
                               ? Colors.amber.withOpacity(0.2)
                               : Colors.grey.shade800,
-                          borderRadius: BorderRadius.circular(12),
+                          borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '$activeLights/${room.lights.length}',
@@ -103,16 +109,19 @@ class RoomCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
+                  const SizedBox(height: 8), // Reduced spacing
                   Text(
                     room.name,
                     style: const TextStyle(
                       color: Colors.white,
                       fontWeight: FontWeight.bold,
-                      fontSize: 18,
+                      fontSize: 16, // Slightly smaller
                     ),
+                    // Add overflow handling
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: 2), // Reduced spacing
                   Text(
                     activeLights == 0
                         ? 'All lights off'
@@ -121,50 +130,58 @@ class RoomCard extends StatelessWidget {
                             : '$activeLights light${activeLights == 1 ? '' : 's'} on',
                     style: TextStyle(
                       color: activeLights > 0 ? Colors.amber.shade400 : Colors.grey.shade500,
-                      fontSize: 14,
+                      fontSize: 12, // Slightly smaller
                     ),
+                    // Add overflow handling
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
                   ),
                 ],
               ),
             ),
             
-            // Light indicators
-            Container(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-              child: Row(
-                children: [
-                  ...room.lights.map((light) {
-                    return Container(
-                      width: 24,
-                      height: 24,
-                      margin: const EdgeInsets.only(right: 8),
-                      decoration: BoxDecoration(
-                        color: light.isOn ? Colors.amber : Colors.grey.shade800,
-                        shape: BoxShape.circle,
-                        boxShadow: light.isOn
-                            ? [
-                                BoxShadow(
-                                  color: Colors.amber.withOpacity(0.4),
-                                  blurRadius: 8,
-                                  spreadRadius: 2,
-                                ),
-                              ]
-                            : null,
-                      ),
-                      child: Icon(
-                        Icons.lightbulb,
-                        color: light.isOn ? Colors.white : Colors.grey.shade600,
-                        size: 14,
-                      ),
-                    );
-                  }),
-                ],
+            // Light indicators - Flexible container that can adapt
+            Flexible(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                child: SingleChildScrollView(
+                  scrollDirection: Axis.horizontal, // Allow horizontal scrolling if many lights
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      for (var light in room.lights)
+                        Container(
+                          width: 20, // Slightly smaller
+                          height: 20, // Slightly smaller
+                          margin: const EdgeInsets.only(right: 6), // Slightly smaller
+                          decoration: BoxDecoration(
+                            color: light.isOn ? Colors.amber : Colors.grey.shade800,
+                            shape: BoxShape.circle,
+                            boxShadow: light.isOn
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.amber.withOpacity(0.4),
+                                      blurRadius: 6, // Slightly smaller
+                                      spreadRadius: 1, // Slightly smaller
+                                    ),
+                                  ]
+                                : null,
+                          ),
+                          child: Icon(
+                            Icons.lightbulb,
+                            color: light.isOn ? Colors.white : Colors.grey.shade600,
+                            size: 12, // Slightly smaller
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
               ),
             ),
             
             // Bottom gradient bar
             Container(
-              height: 6,
+              height: 4, // Slightly smaller
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   colors: [
