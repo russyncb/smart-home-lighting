@@ -10,9 +10,9 @@ class RoomDetailScreen extends StatefulWidget {
   final Room room;
   
   const RoomDetailScreen({
-    Key? key,
+    super.key,
     required this.room,
-  }) : super(key: key);
+  });
 
   @override
   State<RoomDetailScreen> createState() => _RoomDetailScreenState();

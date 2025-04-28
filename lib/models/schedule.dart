@@ -1,5 +1,4 @@
 // lib/models/schedule.dart
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Schedule {
   final String id;

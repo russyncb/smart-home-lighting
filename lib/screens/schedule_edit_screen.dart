@@ -11,10 +11,10 @@ class ScheduleEditScreen extends StatefulWidget {
   final Schedule? schedule;
 
   const ScheduleEditScreen({
-    Key? key,
+    super.key,
     required this.isNew,
     this.schedule,
-  }) : super(key: key);
+  });
 
   @override
   State<ScheduleEditScreen> createState() => _ScheduleEditScreenState();
@@ -107,8 +107,7 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
               onPrimary: Colors.black,
               surface: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
               onSurface: themeProvider.isDarkMode ? Colors.white : Colors.black,
-            ),
-            dialogBackgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+            ), dialogTheme: DialogThemeData(backgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white),
           ),
           child: child!,
         );
@@ -496,7 +495,7 @@ class _ScheduleEditScreenState extends State<ScheduleEditScreen> {
                                             });
                                           },
                                   );
-                                }).toList(),
+                                }),
                               ],
                             );
                           },

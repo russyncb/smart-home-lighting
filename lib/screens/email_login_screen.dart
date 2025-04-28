@@ -3,7 +3,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 class EmailLoginScreen extends StatefulWidget {
-  const EmailLoginScreen({Key? key}) : super(key: key);
+  const EmailLoginScreen({super.key});
 
   @override
   _EmailLoginScreenState createState() => _EmailLoginScreenState();

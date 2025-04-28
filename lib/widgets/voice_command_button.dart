@@ -7,11 +7,11 @@ class VoiceCommandButton extends StatelessWidget {
   final AnimationController animationController;
 
   const VoiceCommandButton({
-    Key? key,
+    super.key,
     required this.isListening,
     required this.onPressed,
     required this.animationController,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

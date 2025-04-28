@@ -13,7 +13,7 @@ import 'package:provider/provider.dart';
 import 'package:illumi_home/services/voice_command_service.dart';
 
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({Key? key}) : super(key: key);
+  const DashboardScreen({super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();

@@ -5,7 +5,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:illumi_home/services/database_service.dart';
 
 class EmailSignupScreen extends StatefulWidget {
-  const EmailSignupScreen({Key? key}) : super(key: key);
+  const EmailSignupScreen({super.key});
 
   @override
   _EmailSignupScreenState createState() => _EmailSignupScreenState();

@@ -7,7 +7,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 
 class AdminLogsScreen extends StatefulWidget {
-  const AdminLogsScreen({Key? key}) : super(key: key);
+  const AdminLogsScreen({super.key});
 
   @override
   State<AdminLogsScreen> createState() => _AdminLogsScreenState();
@@ -459,7 +459,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           ...details.entries.map((entry) => _buildDetailRow(
             entry.key.toString().replaceFirst(entry.key[0], entry.key[0].toUpperCase()),
             entry.value.toString(),
-          )).toList(),
+          )),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,

@@ -10,7 +10,7 @@ class ScheduleService {
   
   Timer? _timer;
   List<Schedule> _schedules = [];
-  Map<String, DateTime> _lastExecutedSchedules = {};
+  final Map<String, DateTime> _lastExecutedSchedules = {};
 
   // Start the schedule service
   void startScheduleService() {

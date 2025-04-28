@@ -98,7 +98,7 @@ class DatabaseService {
       print('Room added successfully with ID: ${docRef.id}');
     } catch (e) {
       print('Error adding room: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -164,7 +164,7 @@ class DatabaseService {
       print('Room deleted successfully: $roomId');
     } catch (e) {
       print('Error deleting room: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -373,7 +373,7 @@ class DatabaseService {
       print('System rooms and schedules created successfully');
     } catch (e) {
       print('Error setting up rooms: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -430,11 +430,11 @@ class DatabaseService {
           );
         }
         
-        print('Light ${newState ? 'turned on' : 'turned off'} successfully via ${source}');
+        print('Light ${newState ? 'turned on' : 'turned off'} successfully via $source');
       });
     } catch (e) {
       print('Error toggling light: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -472,7 +472,7 @@ class DatabaseService {
             await logActivity(
               user.uid,
               user.phoneNumber ?? user.email ?? 'Unknown',
-              'schedule_${action}',
+              'schedule_$action',
               target.roomId,
               'all',
               details: {
@@ -507,7 +507,7 @@ class DatabaseService {
             await logActivity(
               user.uid,
               user.phoneNumber ?? user.email ?? 'Unknown',
-              'schedule_${action}',
+              'schedule_$action',
               target.roomId,
               target.lightId,
               details: {
@@ -520,10 +520,10 @@ class DatabaseService {
         }
       }
       
-      print('Schedule executed successfully: ${action} lights');
+      print('Schedule executed successfully: $action lights');
     } catch (e) {
       print('Error executing schedule: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -572,7 +572,7 @@ class DatabaseService {
       }
     } catch (e) {
       print('Error toggling all lights: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -632,7 +632,7 @@ class DatabaseService {
       print('All lights in room ${roomData['name']} ${newState ? 'turned on' : 'turned off'} successfully');
     } catch (e) {
       print('Error toggling room lights: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -693,7 +693,7 @@ class DatabaseService {
       });
     } catch (e) {
       print('Error adjusting light brightness: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -753,7 +753,7 @@ class DatabaseService {
       });
     } catch (e) {
       print('Error toggling motion sensor: $e');
-      throw e;
+      rethrow;
     }
   }
 
@@ -791,7 +791,7 @@ class DatabaseService {
       print('Schedule added successfully with ID: ${docRef.id}');
     } catch (e) {
       print('Error adding schedule: $e');
-      throw e;
+      rethrow;
     }
   }
   
@@ -826,7 +826,7 @@ class DatabaseService {
       print('Schedule updated successfully: $scheduleId');
     } catch (e) {
       print('Error updating schedule: $e');
-      throw e;
+      rethrow;
     }
   }
   
@@ -861,7 +861,7 @@ class DatabaseService {
       print('Schedule ${isActive ? 'activated' : 'deactivated'} successfully: $scheduleId');
     } catch (e) {
       print('Error toggling schedule: $e');
-      throw e;
+      rethrow;
     }
   }
   
@@ -902,7 +902,7 @@ class DatabaseService {
       print('Schedule deleted successfully: $scheduleId');
     } catch (e) {
       print('Error deleting schedule: $e');
-      throw e;
+      rethrow;
     }
   }
 

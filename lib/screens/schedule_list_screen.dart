@@ -10,7 +10,7 @@ import 'package:provider/provider.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScheduleListScreen extends StatefulWidget {
-  const ScheduleListScreen({Key? key}) : super(key: key);
+  const ScheduleListScreen({super.key});
 
   @override
   State<ScheduleListScreen> createState() => _ScheduleListScreenState();

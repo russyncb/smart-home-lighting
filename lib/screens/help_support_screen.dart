@@ -4,7 +4,7 @@ import 'package:illumi_home/services/theme_service.dart';
 import 'package:provider/provider.dart';
 
 class HelpSupportScreen extends StatelessWidget {
-  const HelpSupportScreen({Key? key}) : super(key: key);
+  const HelpSupportScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
