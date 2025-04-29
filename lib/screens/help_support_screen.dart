@@ -53,7 +53,7 @@ class HelpSupportScreen extends StatelessWidget {
               
               // Crying emoji
               const Text(
-                '😭',
+                '😭🙏🏾',
                 style: TextStyle(
                   fontSize: 80,
                 ),
@@ -64,7 +64,7 @@ class HelpSupportScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Text(
-                  'No support available at this time. Try turning it off and on again.',
+                  'No support available at this time. Try turning it off, zvachose.',
                   style: TextStyle(
                     fontSize: 16,
                     color: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
@@ -138,7 +138,7 @@ class HelpSupportScreen extends StatelessWidget {
                         ),
                       ),
                       content: Text(
-                        'Our support team is currently on vacation... forever.',
+                        'Our support team is currently on vacation... like forever.',
                         style: TextStyle(
                           color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                         ),

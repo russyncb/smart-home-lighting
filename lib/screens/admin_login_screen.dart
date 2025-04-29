@@ -77,9 +77,12 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
-    // Calculate the width based on screen size to avoid overflow
-    final screenWidth = MediaQuery.of(context).size.width;
-    final pinFieldWidth = (screenWidth - 80) / 6; // 80 = padding + margins
+    // Get screen size
+    final size = MediaQuery.of(context).size;
+    // Calculate a smaller width for PIN fields to ensure no overflow
+    // Take 70% of screen width for all fields combined with spacing
+    final availableWidth = size.width * 0.7;
+    final pinFieldWidth = (availableWidth / 6) - 4; // 4 pixels for margins
     
     return Scaffold(
       appBar: AppBar(
@@ -149,16 +152,17 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 ),
                 const SizedBox(height: 48),
                 
-                // PIN input fields - Adaptive width
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                // PIN input fields
+                // Contain them in a fixed width container to avoid overflow
+                Container(
+                  width: availableWidth,
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(
                       6,
                       (index) => Container(
                         width: pinFieldWidth,
-                        height: 60,
+                        height: 56, // Slightly reduced height
                         margin: const EdgeInsets.symmetric(horizontal: 2),
                         child: TextField(
                           controller: _pinControllers[index],
@@ -169,7 +173,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                           obscuringCharacter: '•',
                           textAlign: TextAlign.center,
                           style: TextStyle(
-                            fontSize: 24,
+                            fontSize: 22, // Slightly smaller font
                             fontWeight: FontWeight.bold,
                             color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                           ),
@@ -181,21 +185,21 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                                 ? const Color(0xFF1E293B) 
                                 : Colors.grey.shade200,
                             border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10), // Smaller radius
                               borderSide: BorderSide.none,
                             ),
                             focusedBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               borderSide: BorderSide(
                                 color: _isError ? Colors.red : Colors.amber,
-                                width: 2,
+                                width: 1.5, // Thinner border
                               ),
                             ),
                             errorBorder: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(10),
                               borderSide: const BorderSide(
                                 color: Colors.red,
-                                width: 2,
+                                width: 1.5,
                               ),
                             ),
                           ),
@@ -295,7 +299,7 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: Text(
-                          'Hint: The default admin PIN is 123456',
+                          'Hint: The default admin PIN is obvious',
                           style: TextStyle(
                             color: themeProvider.isDarkMode ? Colors.white70 : Colors.black87,
                             fontSize: 14,
