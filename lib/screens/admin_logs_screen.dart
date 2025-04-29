@@ -17,7 +17,15 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
   bool _isLoading = true;
   List<Map<String, dynamic>> _logs = [];
   String _filterType = 'All';
-  final List<String> _filterOptions = ['All', 'Light Toggle', 'Brightness', 'Motion Sensor'];
+  final List<String> _filterOptions = [
+    'All', 
+    'Light Toggle', 
+    'Brightness', 
+    'Motion Sensor',
+    'Voice Command',
+    'Schedule',
+    'Room Actions',
+  ];
   
   @override
   void initState() {
@@ -43,6 +51,15 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         query = query.where('action', isEqualTo: 'adjust_brightness');
       } else if (_filterType == 'Motion Sensor') {
         query = query.where('action', isEqualTo: 'toggle_motion_sensor');
+      } else if (_filterType == 'Voice Command') {
+        // Filter by source being voice_command
+        query = query.where('details.source', isEqualTo: 'voice_command');
+      } else if (_filterType == 'Schedule') {
+        // Filter by schedule actions
+        query = query.where('action', whereIn: ['schedule_on', 'schedule_off']);
+      } else if (_filterType == 'Room Actions') {
+        // Filter by room-related actions
+        query = query.where('action', whereIn: ['add_room', 'delete_room', 'toggle_room_lights']);
       }
       
       final snapshot = await query.get();
@@ -90,25 +107,75 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     final details = log['details'] as Map<String, dynamic>?;
     if (details == null) return action;
     
+    // Check if this is a voice command
+    final source = details['source'];
+    final isVoiceCommand = source == 'voice_command';
+    
     switch (action) {
       case 'toggle_light':
         final newState = details['newState'] ?? false;
         final lightName = details['lightName'] ?? 'Unknown light';
-        return '${newState ? 'Turned ON' : 'Turned OFF'} $lightName';
+        String result = '${newState ? 'Turned ON' : 'Turned OFF'} $lightName';
+        if (isVoiceCommand) {
+          result += ' (Voice)';
+        }
+        return result;
+        
       case 'adjust_brightness':
         final brightness = details['brightness'] ?? 0;
         final lightName = details['lightName'] ?? 'Unknown light';
-        return 'Set $lightName brightness to $brightness%';
+        String result = 'Set $lightName brightness to $brightness%';
+        if (isVoiceCommand) {
+          result += ' (Voice)';
+        }
+        return result;
+        
       case 'toggle_motion_sensor':
         final enabled = details['enabled'] ?? false;
         final lightName = details['lightName'] ?? 'Unknown light';
         return '${enabled ? 'Enabled' : 'Disabled'} motion sensor for $lightName';
+        
+      case 'schedule_on':
+        return 'Schedule activated: turned ON lights';
+        
+      case 'schedule_off':
+        return 'Schedule activated: turned OFF lights';
+        
+      case 'add_room':
+        final roomName = details['roomName'] ?? 'Unknown room';
+        final roomType = details['roomType'] ?? 'Unknown';
+        return 'Added new $roomType room: $roomName';
+        
+      case 'delete_room':
+        final roomName = details['roomName'] ?? 'Unknown room';
+        return 'Deleted room: $roomName';
+        
+      case 'toggle_room_lights':
+        final roomName = details['roomName'] ?? 'Unknown room';
+        final newState = details['newState'] ?? false;
+        return '${newState ? 'Turned ON' : 'Turned OFF'} all lights in $roomName';
+        
+      case 'toggle_all_lights':
+        final newState = details['newState'] ?? false;
+        final category = details['category'] ?? 'all';
+        String categoryDisplay = 'all';
+        if (category == 'all_indoor') categoryDisplay = 'indoor';
+        if (category == 'all_outdoor') categoryDisplay = 'outdoor';
+        return '${newState ? 'Turned ON' : 'Turned OFF'} all $categoryDisplay lights';
+        
       default:
-        return action;
+        return action.replaceAll('_', ' ').toUpperCase();
     }
   }
 
-  IconData _getActionIcon(String action) {
+  IconData _getActionIcon(String action, Map<String, dynamic>? details) {
+    // Check if this is a voice command
+    final isVoiceCommand = details != null && details['source'] == 'voice_command';
+    
+    if (isVoiceCommand) {
+      return Icons.mic;
+    }
+    
     switch (action) {
       case 'toggle_light':
         return Icons.lightbulb;
@@ -116,12 +183,29 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         return Icons.brightness_medium;
       case 'toggle_motion_sensor':
         return Icons.sensors;
+      case 'schedule_on':
+      case 'schedule_off':
+        return Icons.schedule;
+      case 'add_room':
+        return Icons.add_home;
+      case 'delete_room':
+        return Icons.delete_sweep;
+      case 'toggle_room_lights':
+      case 'toggle_all_lights':
+        return Icons.lightbulb_outline;
       default:
         return Icons.touch_app;
     }
   }
 
-  Color _getActionColor(String action) {
+  Color _getActionColor(String action, Map<String, dynamic>? details) {
+    // Check if this is a voice command
+    final isVoiceCommand = details != null && details['source'] == 'voice_command';
+    
+    if (isVoiceCommand) {
+      return Colors.purple;
+    }
+    
     switch (action) {
       case 'toggle_light':
         return Colors.amber;
@@ -129,8 +213,18 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         return Colors.orange;
       case 'toggle_motion_sensor':
         return Colors.indigo;
-      default:
+      case 'schedule_on':
+      case 'schedule_off':
+        return Colors.teal;
+      case 'add_room':
+        return Colors.green;
+      case 'delete_room':
+        return Colors.red;
+      case 'toggle_room_lights':
+      case 'toggle_all_lights':
         return Colors.blue;
+      default:
+        return Colors.grey;
     }
   }
 
@@ -189,6 +283,13 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadLogs,
           ),
+          IconButton(
+            icon: const Icon(Icons.filter_list),
+            onPressed: () {
+              // Show filter dialog
+              _showFilterDialog();
+            },
+          ),
         ],
       ),
       body: Container(
@@ -203,55 +304,41 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         ),
         child: Column(
           children: [
-            // Filter options
+            // Filter indicator
             Container(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               color: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
               child: Row(
                 children: [
+                  Icon(
+                    Icons.filter_list,
+                    size: 18,
+                    color: themeProvider.isDarkMode ? Colors.amber : Colors.amber.shade800,
+                  ),
+                  const SizedBox(width: 8),
                   Text(
-                    'Filter by:',
+                    'Current Filter: $_filterType',
                     style: TextStyle(
-                      color: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
+                      color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      scrollDirection: Axis.horizontal,
-                      child: Row(
-                        children: _filterOptions.map((filter) {
-                          final isSelected = _filterType == filter;
-                          return Padding(
-                            padding: const EdgeInsets.only(right: 8.0),
-                            child: ChoiceChip(
-                              label: Text(filter),
-                              selected: isSelected,
-                              selectedColor: Colors.amber.withOpacity(0.2),
-                              labelStyle: TextStyle(
-                                color: isSelected 
-                                    ? Colors.amber 
-                                    : (themeProvider.isDarkMode ? Colors.white70 : Colors.black54),
-                                fontWeight: isSelected ? FontWeight.w500 : FontWeight.normal,
-                              ),
-                              backgroundColor: themeProvider.isDarkMode
-                                  ? const Color(0xFF0F172A)
-                                  : Colors.grey.shade200,
-                              onSelected: (value) {
-                                if (value) {
-                                  setState(() {
-                                    _filterType = filter;
-                                  });
-                                  _loadLogs();
-                                }
-                              },
-                            ),
-                          );
-                        }).toList(),
+                  const Spacer(),
+                  if (_filterType != 'All')
+                    TextButton(
+                      onPressed: () {
+                        setState(() {
+                          _filterType = 'All';
+                        });
+                        _loadLogs();
+                      },
+                      child: Text(
+                        'Clear',
+                        style: TextStyle(
+                          color: themeProvider.isDarkMode ? Colors.amber : Colors.amber.shade800,
+                        ),
                       ),
                     ),
-                  ),
                 ],
               ),
             ),
@@ -299,6 +386,7 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                           itemBuilder: (context, index) {
                             final log = _logs[index];
                             final action = log['action'] as String? ?? 'Unknown action';
+                            final details = log['details'] as Map<String, dynamic>?;
                             
                             return Container(
                               margin: const EdgeInsets.only(bottom: 12),
@@ -320,12 +408,12 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
                                   width: 48,
                                   height: 48,
                                   decoration: BoxDecoration(
-                                    color: _getActionColor(action).withOpacity(0.1),
+                                    color: _getActionColor(action, details).withOpacity(0.1),
                                     shape: BoxShape.circle,
                                   ),
                                   child: Icon(
-                                    _getActionIcon(action),
-                                    color: _getActionColor(action),
+                                    _getActionIcon(action, details),
+                                    color: _getActionColor(action, details),
                                     size: 24,
                                   ),
                                 ),
@@ -394,6 +482,62 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
     );
   }
   
+  void _showFilterDialog() {
+    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
+    
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
+        title: Text(
+          'Filter Activity Logs',
+          style: TextStyle(
+            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+          ),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: _filterOptions.map((filter) {
+              final isSelected = _filterType == filter;
+              return ListTile(
+                leading: Icon(
+                  isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+                  color: isSelected ? Colors.amber : (themeProvider.isDarkMode ? Colors.white70 : Colors.grey.shade700),
+                ),
+                title: Text(
+                  filter,
+                  style: TextStyle(
+                    color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                  ),
+                ),
+                onTap: () {
+                  setState(() {
+                    _filterType = filter;
+                  });
+                  Navigator.pop(context);
+                  _loadLogs();
+                },
+              );
+            }).toList(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'CANCEL',
+              style: TextStyle(
+                color: themeProvider.isDarkMode ? Colors.white70 : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+  
   Widget _buildLogDetailsSheet(BuildContext context, Map<String, dynamic> log) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final details = log['details'] as Map<String, dynamic>? ?? {};
@@ -445,6 +589,32 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           _buildDetailRow('Room ID', log['roomId'] ?? 'Unknown'),
           _buildDetailRow('Light ID', log['lightId'] ?? 'Unknown'),
           _buildDetailRow('Timestamp', _formatTimestamp(log['timestamp'])),
+          
+          // Source information - highlight this for voice commands
+          if (details.containsKey('source')) {
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                  decoration: BoxDecoration(
+                    color: details['source'] == 'voice_command' 
+                        ? Colors.purple.withOpacity(0.1)
+                        : Colors.blue.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'Source: ${details['source']}',
+                    style: TextStyle(
+                      color: details['source'] == 'voice_command' ? Colors.purple : Colors.blue,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          },
+          
           const SizedBox(height: 16),
           Text(
             'Additional Details',
@@ -455,10 +625,12 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          ...details.entries.map((entry) => _buildDetailRow(
-            entry.key.toString().replaceFirst(entry.key[0], entry.key[0].toUpperCase()),
-            entry.value.toString(),
-          )),
+          ...details.entries
+              .where((entry) => entry.key != 'source') // Skip source since we display it above
+              .map((entry) => _buildDetailRow(
+                entry.key.toString().replaceFirst(entry.key[0], entry.key[0].toUpperCase()),
+                entry.value.toString(),
+              )),
           const SizedBox(height: 24),
           SizedBox(
             width: double.infinity,
