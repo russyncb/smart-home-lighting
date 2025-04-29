@@ -7,7 +7,6 @@ import 'package:illumi_home/services/database_service.dart';
 import 'package:illumi_home/services/schedule_service.dart';
 import 'package:illumi_home/services/theme_service.dart';
 import 'package:provider/provider.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
 class ScheduleListScreen extends StatefulWidget {
   const ScheduleListScreen({super.key});

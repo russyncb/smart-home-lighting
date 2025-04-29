@@ -8,11 +8,11 @@ class RoomCard extends StatelessWidget {
   final VoidCallback? onLongPress;
 
   const RoomCard({
-    Key? key,
+    super.key,
     required this.room,
     required this.onTap,
     this.onLongPress,
-  }) : super(key: key);
+  });
 
   String _getRoomIcon(String roomName) {
     final name = roomName.toLowerCase();

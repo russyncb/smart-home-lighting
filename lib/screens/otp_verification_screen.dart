@@ -10,10 +10,10 @@ class OTPVerificationScreen extends StatefulWidget {
   final String phoneNumber;
 
   const OTPVerificationScreen({
-    Key? key,
+    super.key,
     required this.verificationId,
     required this.phoneNumber,
-  }) : super(key: key);
+  });
 
   @override
   State<OTPVerificationScreen> createState() => _OTPVerificationScreenState();
@@ -99,7 +99,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
     // Format the phone number to handle overflow
     String formattedPhone = widget.phoneNumber;
     if (formattedPhone.length > 15) {
-      formattedPhone = formattedPhone.substring(0, 12) + '...';
+      formattedPhone = '${formattedPhone.substring(0, 12)}...';
     }
 
     return Scaffold(
@@ -219,7 +219,7 @@ class _OTPVerificationScreenState extends State<OTPVerificationScreen> {
                           const SizedBox(height: 16),
                           
                           // OTP input fields
-                          Container(
+                          SizedBox(
                             height: 55, // Fixed height for OTP row
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
