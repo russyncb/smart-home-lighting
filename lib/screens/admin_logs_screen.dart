@@ -591,29 +591,25 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
           _buildDetailRow('Timestamp', _formatTimestamp(log['timestamp'])),
           
           // Source information - highlight this for voice commands
-          if (details.containsKey('source')) {
+          if (details.containsKey('source')) ...[
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                  decoration: BoxDecoration(
-                    color: details['source'] == 'voice_command' 
-                        ? Colors.purple.withOpacity(0.1)
-                        : Colors.blue.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    'Source: ${details['source']}',
-                    style: TextStyle(
-                      color: details['source'] == 'voice_command' ? Colors.purple : Colors.blue,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+              decoration: BoxDecoration(
+                color: details['source'] == 'voice_command' 
+                    ? Colors.purple.withOpacity(0.1)
+                    : Colors.blue.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                'Source: ${details['source']}',
+                style: TextStyle(
+                  color: details['source'] == 'voice_command' ? Colors.purple : Colors.blue,
+                  fontWeight: FontWeight.w500,
                 ),
-              ],
+              ),
             ),
-          },
+          ],
           
           const SizedBox(height: 16),
           Text(
