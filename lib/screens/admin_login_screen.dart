@@ -77,6 +77,9 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
+    // Calculate the width based on screen size to avoid overflow
+    final screenWidth = MediaQuery.of(context).size.width;
+    final pinFieldWidth = (screenWidth - 80) / 6; // 80 = padding + margins
     
     return Scaffold(
       appBar: AppBar(
@@ -146,77 +149,80 @@ class _AdminLoginScreenState extends State<AdminLoginScreen> {
                 ),
                 const SizedBox(height: 48),
                 
-                // PIN input fields
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: List.generate(
-                    6,
-                    (index) => Container(
-                      width: 50,
-                      height: 60,
-                      margin: const EdgeInsets.symmetric(horizontal: 5),
-                      child: TextField(
-                        controller: _pinControllers[index],
-                        focusNode: _pinFocusNodes[index],
-                        keyboardType: TextInputType.number,
-                        maxLength: 1,
-                        obscureText: true,
-                        obscuringCharacter: '•',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-                        ),
-                        decoration: InputDecoration(
-                          counterText: '',
-                          contentPadding: EdgeInsets.zero,
-                          filled: true,
-                          fillColor: themeProvider.isDarkMode 
-                              ? const Color(0xFF1E293B) 
-                              : Colors.grey.shade200,
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide.none,
+                // PIN input fields - Adaptive width
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 10),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(
+                      6,
+                      (index) => Container(
+                        width: pinFieldWidth,
+                        height: 60,
+                        margin: const EdgeInsets.symmetric(horizontal: 2),
+                        child: TextField(
+                          controller: _pinControllers[index],
+                          focusNode: _pinFocusNodes[index],
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          obscureText: true,
+                          obscuringCharacter: '•',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(
+                            fontSize: 24,
+                            fontWeight: FontWeight.bold,
+                            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                           ),
-                          focusedBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: _isError ? Colors.red : Colors.amber,
-                              width: 2,
+                          decoration: InputDecoration(
+                            counterText: '',
+                            contentPadding: EdgeInsets.zero,
+                            filled: true,
+                            fillColor: themeProvider.isDarkMode 
+                                ? const Color(0xFF1E293B) 
+                                : Colors.grey.shade200,
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide.none,
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(
+                                color: _isError ? Colors.red : Colors.amber,
+                                width: 2,
+                              ),
+                            ),
+                            errorBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                color: Colors.red,
+                                width: 2,
+                              ),
                             ),
                           ),
-                          errorBorder: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(12),
-                            borderSide: BorderSide(
-                              color: Colors.red,
-                              width: 2,
-                            ),
-                          ),
-                        ),
-                        onChanged: (value) {
-                          // When a digit is entered, move to next field
-                          if (value.isNotEmpty && index < 5) {
-                            _pinFocusNodes[index + 1].requestFocus();
-                          }
-                          
-                          // If all digits are entered, verify PIN
-                          if (index == 5 && value.isNotEmpty) {
-                            final allFilled = _pinControllers.every(
-                              (controller) => controller.text.isNotEmpty
-                            );
-                            if (allFilled) {
-                              _verifyPin();
+                          onChanged: (value) {
+                            // When a digit is entered, move to next field
+                            if (value.isNotEmpty && index < 5) {
+                              _pinFocusNodes[index + 1].requestFocus();
                             }
-                          }
-                          
-                          // Clear error when user starts typing again
-                          if (_isError) {
-                            setState(() {
-                              _isError = false;
-                            });
-                          }
-                        },
+                            
+                            // If all digits are entered, verify PIN
+                            if (index == 5 && value.isNotEmpty) {
+                              final allFilled = _pinControllers.every(
+                                (controller) => controller.text.isNotEmpty
+                              );
+                              if (allFilled) {
+                                _verifyPin();
+                              }
+                            }
+                            
+                            // Clear error when user starts typing again
+                            if (_isError) {
+                              setState(() {
+                                _isError = false;
+                              });
+                            }
+                          },
+                        ),
                       ),
                     ),
                   ),
