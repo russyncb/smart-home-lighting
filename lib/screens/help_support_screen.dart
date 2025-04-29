@@ -64,7 +64,7 @@ class HelpSupportScreen extends StatelessWidget {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 32.0),
                 child: Text(
-                  'No support available at this time. Try turning it off, zvachose.',
+                  'No support available at this time. Try turning it off, and on again.',
                   style: TextStyle(
                     fontSize: 16,
                     color: themeProvider.isDarkMode ? Colors.white70 : Colors.black54,
