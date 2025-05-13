@@ -283,13 +283,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
             icon: const Icon(Icons.refresh),
             onPressed: _loadLogs,
           ),
-          IconButton(
-            icon: const Icon(Icons.filter_list),
-            onPressed: () {
-              // Show filter dialog
-              _showFilterDialog();
-            },
-          ),
         ],
       ),
       body: Container(
@@ -304,42 +297,51 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
         ),
         child: Column(
           children: [
-            // Filter indicator
+            // Filter toggle buttons
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               color: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.filter_list,
-                    size: 18,
-                    color: themeProvider.isDarkMode ? Colors.amber : Colors.amber.shade800,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Current Filter: $_filterType',
-                    style: TextStyle(
-                      color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  const Spacer(),
-                  if (_filterType != 'All')
-                    TextButton(
-                      onPressed: () {
-                        setState(() {
-                          _filterType = 'All';
-                        });
-                        _loadLogs();
-                      },
-                      child: Text(
-                        'Clear',
-                        style: TextStyle(
-                          color: themeProvider.isDarkMode ? Colors.amber : Colors.amber.shade800,
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  children: _filterOptions.map((filter) {
+                    final isSelected = _filterType == filter;
+                    return Padding(
+                      padding: const EdgeInsets.only(right: 8),
+                      child: FilterChip(
+                        selected: isSelected,
+                        label: Text(filter),
+                        onSelected: (selected) {
+                          if (selected) {
+                            setState(() {
+                              _filterType = filter;
+                            });
+                            _loadLogs();
+                          }
+                        },
+                        selectedColor: Colors.amber.withOpacity(0.2),
+                        checkmarkColor: Colors.amber,
+                        backgroundColor: themeProvider.isDarkMode 
+                            ? const Color(0xFF0F172A) 
+                            : Colors.grey.shade100,
+                        labelStyle: TextStyle(
+                          color: isSelected 
+                              ? Colors.amber
+                              : (themeProvider.isDarkMode ? Colors.white : Colors.black87),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(20),
+                          side: BorderSide(
+                            color: isSelected ? Colors.amber : Colors.transparent,
+                            width: 1,
+                          ),
                         ),
                       ),
-                    ),
-                ],
+                    );
+                  }).toList(),
+                ),
               ),
             ),
             
@@ -478,62 +480,6 @@ class _AdminLogsScreenState extends State<AdminLogsScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-  
-  void _showFilterDialog() {
-    final themeProvider = Provider.of<ThemeProvider>(context, listen: false);
-    
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: themeProvider.isDarkMode ? const Color(0xFF1E293B) : Colors.white,
-        title: Text(
-          'Filter Activity Logs',
-          style: TextStyle(
-            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-          ),
-        ),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: _filterOptions.map((filter) {
-              final isSelected = _filterType == filter;
-              return ListTile(
-                leading: Icon(
-                  isSelected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-                  color: isSelected ? Colors.amber : (themeProvider.isDarkMode ? Colors.white70 : Colors.grey.shade700),
-                ),
-                title: Text(
-                  filter,
-                  style: TextStyle(
-                    color: themeProvider.isDarkMode ? Colors.white : Colors.black87,
-                    fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                  ),
-                ),
-                onTap: () {
-                  setState(() {
-                    _filterType = filter;
-                  });
-                  Navigator.pop(context);
-                  _loadLogs();
-                },
-              );
-            }).toList(),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text(
-              'CANCEL',
-              style: TextStyle(
-                color: themeProvider.isDarkMode ? Colors.white70 : Colors.grey.shade700,
-              ),
-            ),
-          ),
-        ],
       ),
     );
   }
